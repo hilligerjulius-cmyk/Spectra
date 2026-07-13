@@ -78,6 +78,32 @@ pnpm dev
 
 ---
 
+## Deploy (Railway, single service)
+
+Spectra ships as **one container**: the Compiler Engine runs **in-process** inside the Next.js
+server (the `/api/materialize` route runs the pipeline directly and streams SSE), so there's no
+second service to wire up and **no environment variables are required**.
+
+1. Push this repo to GitHub (already done for the working branch).
+2. On [Railway](https://railway.app): **New Project → Deploy from GitHub repo** → pick this repo.
+3. Railway detects the root `Dockerfile` (pinned via `railway.json`) and builds the image.
+   It injects `PORT`; the server binds it automatically. That's it — open the generated URL.
+
+Because a real browser can reach the CDN, the sandbox renders the live app fully in production.
+
+**Optional env:**
+- `SPECTRA_LLM=anthropic` + `ANTHROPIC_API_KEY` — enable open-ended LLM generation.
+- `COMPILER_URL=https://…` — switch to a **two-service** topology: the canvas proxies to a
+  standalone Fastify compiler (run `pnpm --filter @spectra/compiler start` as its own service)
+  instead of running the pipeline in-process.
+
+Local production check:
+
+```bash
+pnpm --filter @spectra/canvas build
+pnpm --filter @spectra/canvas start   # in-process compiler, honors $PORT (default 3000)
+```
+
 ## Monorepo layout
 
 ```

@@ -17,6 +17,9 @@ importers:
 
   apps/canvas:
     dependencies:
+      '@spectra/compiler':
+        specifier: workspace:*
+        version: link:../compiler
       '@spectra/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

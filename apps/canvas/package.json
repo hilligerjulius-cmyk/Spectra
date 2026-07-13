@@ -6,12 +6,13 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf .next .turbo *.tsbuildinfo"
   },
   "dependencies": {
+    "@spectra/compiler": "workspace:*",
     "@spectra/contracts": "workspace:*",
     "@spectra/design-tokens": "workspace:*",
     "@spectra/sandbox": "workspace:*",
