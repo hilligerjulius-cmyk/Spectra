@@ -6,14 +6,13 @@ export interface Config {
   readonly port: number;
   readonly host: string;
   readonly anthropic: { readonly apiKey: string | undefined };
-  readonly openai: { readonly apiKey: string | undefined };
   /** Providers that have a configured API key. */
   readonly providers: readonly ModelProvider[];
-  /** Models usable given the configured keys (subset of the catalog). */
+  /** Models usable given the configured key (subset of the catalog). */
   readonly availableModels: readonly ModelInfo[];
-  /** Model used when a request doesn't name one (null when no keys → templates). */
+  /** Model used when a request doesn't name one (null when no key → templates). */
   readonly defaultModel: string | null;
-  /** True when at least one provider key is present. */
+  /** True when a provider key is present. */
   readonly llmEnabled: boolean;
   /** Maximum repair attempts before falling back to a deterministic template. */
   readonly maxRepairAttempts: number;
@@ -30,19 +29,14 @@ function pickDefaultModel(available: readonly ModelInfo[]): string | null {
 
 export function loadConfig(): Config {
   const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim() || undefined;
-  const openaiKey = process.env.OPENAI_API_KEY?.trim() || undefined;
 
-  const providers: ModelProvider[] = [];
-  if (anthropicKey) providers.push("anthropic");
-  if (openaiKey) providers.push("openai");
-
+  const providers: ModelProvider[] = anthropicKey ? ["anthropic"] : [];
   const availableModels = MODEL_CATALOG.filter((m) => providers.includes(m.provider));
 
   return {
     port: Number(process.env.PORT ?? 4000),
     host: process.env.HOST ?? "0.0.0.0",
     anthropic: { apiKey: anthropicKey },
-    openai: { apiKey: openaiKey },
     providers,
     availableModels,
     defaultModel: pickDefaultModel(availableModels),

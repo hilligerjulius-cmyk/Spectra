@@ -1,12 +1,9 @@
 /**
- * The model catalog — the set of LLM backends Spectra can generate with.
- *
- * Model IDs are editable: the Claude IDs are current; the OpenAI IDs are
- * sensible defaults you can adjust to whatever your OpenAI account exposes.
+ * The model catalog — the Claude models Spectra can generate with.
  * The UI only shows models whose provider API key is configured on the server.
  */
 
-export type ModelProvider = "anthropic" | "openai";
+export type ModelProvider = "anthropic";
 
 export type ModelTier = "fast" | "balanced" | "powerful" | "frontier";
 
@@ -20,29 +17,24 @@ export interface ModelInfo {
   /** One-line description for the picker. */
   readonly blurb: string;
   /**
-   * Anthropic only: whether the model accepts `output_config.effort` +
-   * adaptive thinking (Haiku 4.5 does not). Ignored for OpenAI.
+   * Whether the model accepts `output_config.effort` + adaptive thinking.
+   * Haiku 4.5 does not.
    */
   readonly supportsEffort?: boolean;
 }
 
 export const MODEL_CATALOG: readonly ModelInfo[] = [
-  // ── Anthropic (Claude) ──
   { id: "claude-haiku-4-5", provider: "anthropic", label: "Claude Haiku 4.5", tier: "fast", blurb: "Fastest · lowest cost", supportsEffort: false },
   { id: "claude-sonnet-5", provider: "anthropic", label: "Claude Sonnet 5", tier: "balanced", blurb: "Balanced quality & speed", supportsEffort: true },
   { id: "claude-opus-4-8", provider: "anthropic", label: "Claude Opus 4.8", tier: "powerful", blurb: "Highest quality", supportsEffort: true },
   { id: "claude-fable-5", provider: "anthropic", label: "Claude Fable 5", tier: "frontier", blurb: "Most capable · premium", supportsEffort: true },
-  // ── OpenAI (IDs configurable) ──
-  { id: "gpt-5", provider: "openai", label: "GPT-5", tier: "powerful", blurb: "OpenAI flagship" },
-  { id: "gpt-4.1", provider: "openai", label: "GPT-4.1", tier: "balanced", blurb: "OpenAI balanced" },
-  { id: "gpt-4o-mini", provider: "openai", label: "GPT-4o mini", tier: "fast", blurb: "OpenAI fast & cheap" },
 ];
 
 export function findModel(id: string): ModelInfo | undefined {
   return MODEL_CATALOG.find((m) => m.id === id);
 }
 
-/** Response of GET /models — which models are usable given configured keys. */
+/** Response of GET /models — which models are usable given the configured key. */
 export interface ModelsResponse {
   /** Models whose provider key is present on the server. */
   readonly available: readonly ModelInfo[];

@@ -8,7 +8,6 @@ const config: Config = {
   port: 4000,
   host: "0.0.0.0",
   anthropic: { apiKey: undefined },
-  openai: { apiKey: undefined },
   providers: [],
   availableModels: [],
   defaultModel: null,

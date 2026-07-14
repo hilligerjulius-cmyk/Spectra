@@ -38,10 +38,9 @@ app is compiled and mounted before you in real time.
 
 ### Generation
 
-- **LLM (primary):** add `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` and pick a model in the UI
-  — **Claude** (Haiku 4.5, Sonnet 5, Opus 4.8, Fable 5) and **OpenAI** (GPT-5, GPT-4.1, GPT-4o
-  mini). Better model → better app. The UI only offers models whose provider key is configured,
-  and keys stay **server-side**.
+- **LLM (primary):** add `ANTHROPIC_API_KEY` and pick a **Claude** model in the UI — Haiku 4.5,
+  Sonnet 5 (default), Opus 4.8, or Fable 5. Better model → better app. The model picker only
+  appears when a key is configured, and the key stays **server-side**.
 - **Deterministic templates (safety net):** with no key — or if the model's output can't be
   healed, or the model API call itself fails — a fast intent-grammar materializes one of nine
   hand-authored, guaranteed-valid archetypes (**todo, kanban, calculator, dashboard, timer,
@@ -75,14 +74,13 @@ materialize. Everything runs offline with zero configuration.
 
 ```bash
 cp .env.example .env
-# edit .env — add either or both:
+# edit .env:
 #   ANTHROPIC_API_KEY=sk-ant-...
-#   OPENAI_API_KEY=sk-...
-#   SPECTRA_DEFAULT_MODEL=claude-sonnet-5   # optional
+#   SPECTRA_DEFAULT_MODEL=claude-sonnet-5   # optional (this is the default)
 pnpm dev
 ```
 
-The model picker then appears under the command bar, offering the models whose key is set.
+The Claude model picker then appears under the command bar.
 
 ---
 
@@ -100,8 +98,8 @@ second service to wire up and **no environment variables are required**.
 Because a real browser can reach the CDN, the sandbox renders the live app fully in production.
 
 **Optional env (set in the Railway service's Variables):**
-- `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` — enable LLM generation + the model picker.
-- `SPECTRA_DEFAULT_MODEL` — the model used when a request doesn't specify one.
+- `ANTHROPIC_API_KEY` — enable Claude generation + the model picker.
+- `SPECTRA_DEFAULT_MODEL` — the model used when a request doesn't specify one (default Sonnet 5).
 - `COMPILER_URL=https://…` — switch to a **two-service** topology: the canvas proxies to a
   standalone Fastify compiler (run `pnpm --filter @spectra/compiler start` as its own service)
   instead of running the pipeline in-process.

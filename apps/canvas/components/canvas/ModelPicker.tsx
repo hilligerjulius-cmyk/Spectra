@@ -13,7 +13,6 @@ const TIER_DOT: Record<ModelTier, string> = {
 
 const PROVIDER_LABEL: Record<ModelProvider, string> = {
   anthropic: "Claude",
-  openai: "OpenAI",
 };
 
 export function ModelPicker({

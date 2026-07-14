@@ -3,7 +3,7 @@
 // Node-only deps used by the in-process Compiler Engine. They must never be
 // bundled: esbuild ships a native binary + dynamic requires, and there's no
 // value in webpack-ing @babel/parser or the Anthropic SDK into the server.
-const SERVER_EXTERNALS = ["esbuild", "@babel/parser", "@anthropic-ai/sdk", "openai", "dotenv"];
+const SERVER_EXTERNALS = ["esbuild", "@babel/parser", "@anthropic-ai/sdk", "dotenv"];
 
 const nextConfig = {
   reactStrictMode: true,

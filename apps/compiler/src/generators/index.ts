@@ -40,9 +40,9 @@ export const deterministicGenerator: Generator = {
   },
 };
 
-/** Build an LLM generator bound to a specific model (Claude or OpenAI). */
+/** Build an LLM generator bound to a specific Claude model. */
 export function createLlmGenerator(model: ModelInfo, config: Config): Generator {
-  const strategy: GenerationStrategy = model.provider === "openai" ? "openai" : "anthropic";
+  const strategy: GenerationStrategy = "anthropic";
   return {
     kind: "llm",
     strategy,
