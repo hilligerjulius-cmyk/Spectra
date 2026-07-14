@@ -1,14 +1,26 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { ModelInfo } from "@spectra/contracts";
 import { CommandBar } from "./CommandBar";
+import { ModelPicker } from "./ModelPicker";
 import { ChromaticText } from "@/components/fx/ChromaticText";
 import { SUGGESTIONS } from "@/hooks/useCommandBar";
 import { stagger, riseItem } from "@/lib/motion";
 
 const CHIPS = SUGGESTIONS.slice(0, 5);
 
-export function HeroState({ onSubmit }: { onSubmit: (intent: string) => void }) {
+export function HeroState({
+  onSubmit,
+  models,
+  model,
+  onModel,
+}: {
+  onSubmit: (intent: string) => void;
+  models: readonly ModelInfo[];
+  model: string | undefined;
+  onModel: (id: string) => void;
+}) {
   return (
     <motion.div
       variants={stagger}
@@ -37,7 +49,11 @@ export function HeroState({ onSubmit }: { onSubmit: (intent: string) => void }) 
         <CommandBar onSubmit={onSubmit} active />
       </motion.div>
 
-      <motion.div variants={riseItem} className="mt-5 flex flex-wrap items-center justify-center gap-2">
+      <motion.div variants={riseItem} className="mt-4 flex items-center justify-center">
+        <ModelPicker models={models} value={model} onChange={onModel} />
+      </motion.div>
+
+      <motion.div variants={riseItem} className="mt-4 flex flex-wrap items-center justify-center gap-2">
         {CHIPS.map((s) => (
           <button
             key={s}

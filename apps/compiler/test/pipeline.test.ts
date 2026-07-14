@@ -7,9 +7,12 @@ import { materialize } from "../src/pipeline/orchestrator";
 const config: Config = {
   port: 4000,
   host: "0.0.0.0",
-  strategy: "deterministic",
+  anthropic: { apiKey: undefined },
+  openai: { apiKey: undefined },
+  providers: [],
+  availableModels: [],
+  defaultModel: null,
   llmEnabled: false,
-  anthropic: { apiKey: undefined, model: "claude-opus-4-8" },
   maxRepairAttempts: 2,
 };
 
@@ -59,7 +62,9 @@ describe("materialize pipeline", () => {
 
   it("falls back to a valid template when generation cannot be healed", async () => {
     const broken: Generator = {
-      kind: "anthropic",
+      kind: "llm",
+      strategy: "anthropic",
+      modelId: "test-model",
       async generate() {
         return { source: "this is <<< not valid tsx !!!", strategy: "anthropic" };
       },
@@ -77,5 +82,29 @@ describe("materialize pipeline", () => {
     expect(result.manifest.strategy).toBe("repair-fallback");
     expect(result.bundle.length).toBeGreaterThan(0);
     expect(result.manifest.archetype).toBe("dashboard");
+  });
+
+  it("falls back to a template when the model API call throws", async () => {
+    const throwing: Generator = {
+      kind: "llm",
+      strategy: "anthropic",
+      modelId: "test-model",
+      async generate() {
+        throw new Error("401 Unauthorized (bad key)");
+      },
+      async repair() {
+        throw new Error("401 Unauthorized (bad key)");
+      },
+    };
+    const result = await materialize(
+      { intent: "a pricing page", options: { noCache: true } },
+      config,
+      () => {},
+      throwing,
+    );
+    expect(result.manifest.strategy).toBe("repair-fallback");
+    expect(result.manifest.model).toBeNull();
+    expect(result.bundle.length).toBeGreaterThan(0);
+    expect(result.manifest.archetype).toBe("pricing");
   });
 });

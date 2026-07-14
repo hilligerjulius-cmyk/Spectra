@@ -7,6 +7,8 @@ export interface MaterializeRequest {
   readonly options?: {
     /** Force a strategy; otherwise the engine decides from configuration. */
     readonly strategy?: "auto" | "deterministic" | "anthropic";
+    /** Model id to generate with (must be a configured/available model). */
+    readonly model?: string;
     /** Bypass the content-addressed cache. */
     readonly noCache?: boolean;
   };

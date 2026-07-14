@@ -38,7 +38,7 @@ export function useMaterialize() {
     setState((s) => (s.status === "materializing" ? { ...s, status: "mounted" } : s));
   }, []);
 
-  const run = useCallback(async (intent: string) => {
+  const run = useCallback(async (intent: string, model?: string) => {
     const trimmed = intent.trim();
     if (!trimmed) return;
 
@@ -50,7 +50,7 @@ export function useMaterialize() {
 
     try {
       await materializeStream(
-        { intent: trimmed },
+        { intent: trimmed, options: model ? { model } : undefined },
         {
           signal: controller.signal,
           onEvent: (event) => {

@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { config } from "./config";
 import { healthRoutes } from "./routes/health";
 import { materializeRoutes } from "./routes/materialize";
+import { modelsRoutes } from "./routes/models";
 import { log } from "./util/logger";
 
 /** Build (but do not start) the Fastify app — used by both `main` and tests. */
@@ -14,6 +15,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     methods: ["GET", "POST", "OPTIONS"],
   });
   await app.register(healthRoutes);
+  await app.register(modelsRoutes);
   await app.register(materializeRoutes);
   return app;
 }
@@ -23,8 +25,9 @@ async function main(): Promise<void> {
   try {
     await app.listen({ port: config.port, host: config.host });
     log.info(`Spectra Compiler Engine listening on http://${config.host}:${config.port}`, {
-      strategy: config.strategy,
       llmEnabled: config.llmEnabled,
+      providers: config.providers,
+      defaultModel: config.defaultModel,
     });
   } catch (err) {
     log.error("Failed to start Compiler Engine", { err: String(err) });

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMaterialize } from "@/hooks/useMaterialize";
+import { useModels } from "@/hooks/useModels";
 import { PrismField } from "@/components/fx/PrismField";
 import { CursorGlow } from "@/components/fx/CursorGlow";
 import { GrainOverlay } from "@/components/fx/GrainOverlay";
@@ -13,8 +14,15 @@ import { stateSwap } from "@/lib/motion";
 
 export function SpectraCanvas() {
   const m = useMaterialize();
+  const models = useModels();
+  const [model, setModel] = useState<string | undefined>(undefined);
   const showingApp = m.status === "materializing" || m.status === "mounted";
   const intensity = m.status === "idle" ? 1 : m.status === "thinking" ? 1.35 : 1.7;
+
+  // Adopt the server's default model once the catalog loads.
+  useEffect(() => {
+    if (!model && models.defaultModel) setModel(models.defaultModel);
+  }, [models.defaultModel, model]);
 
   // Escape / ⌘K returns from a mounted app to the canvas.
   useEffect(() => {
@@ -53,7 +61,12 @@ export function SpectraCanvas() {
       <AnimatePresence mode="wait">
         {m.status === "idle" ? (
           <motion.div key="idle" variants={stateSwap} initial="initial" animate="animate" exit="exit" className="w-full">
-            <HeroState onSubmit={m.run} />
+            <HeroState
+              onSubmit={(intent) => m.run(intent, model)}
+              models={models.available}
+              model={model}
+              onModel={setModel}
+            />
           </motion.div>
         ) : m.status === "thinking" ? (
           <motion.div key="think" variants={stateSwap} initial="initial" animate="animate" exit="exit" className="w-full">
@@ -66,7 +79,7 @@ export function SpectraCanvas() {
               materializing={m.status === "materializing"}
               onMounted={m.markMounted}
               onDismiss={m.reset}
-              onRegenerate={() => m.run(m.intent)}
+              onRegenerate={() => m.run(m.intent, model)}
             />
           </motion.div>
         ) : m.status === "error" ? (

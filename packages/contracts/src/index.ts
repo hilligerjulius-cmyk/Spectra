@@ -14,3 +14,12 @@ export type {
 } from "./materialize";
 
 export { PHASE_ORDER, SSE_EVENT } from "./materialize";
+
+export type {
+  ModelProvider,
+  ModelTier,
+  ModelInfo,
+  ModelsResponse,
+} from "./models";
+
+export { MODEL_CATALOG, findModel } from "./models";

@@ -61,16 +61,15 @@ export async function materialize(
   const ing = ingestIntent(request.intent);
   emit(mkPhase("ingest", "ok", "Classified as " + archetypeLabel(ing.archetype), ing.archetype));
 
-  // Strategy resolution (explicit override → request override → config default).
-  const requested = request.options?.strategy ?? "auto";
+  // Generator resolution (explicit override → forced deterministic → model pick).
+  const requestedStrategy = request.options?.strategy ?? "auto";
   let generator: Generator;
   if (generatorOverride) generator = generatorOverride;
-  else if (requested === "deterministic") generator = deterministicGenerator;
-  else if (requested === "anthropic" && config.llmEnabled) generator = selectGenerator({ ...config, strategy: "anthropic" });
-  else generator = selectGenerator(config);
+  else if (requestedStrategy === "deterministic") generator = deterministicGenerator;
+  else generator = selectGenerator(config, request.options?.model);
 
   const req: GenerationRequest = { intent: request.intent, archetype: ing.archetype, params: ing.params };
-  const key = cacheKey(ing.normalized, generator.kind);
+  const key = cacheKey(ing.normalized, generator.modelId ?? "deterministic");
 
   // ── Cache ──
   if (!request.options?.noCache) {
@@ -85,11 +84,28 @@ export async function materialize(
   }
 
   // ── 2. Generate ──
-  emit(mkPhase("generate", "start", generator.kind === "anthropic" ? "Generating with Claude" : "Composing from archetype"));
-  let gen = await generator.generate(req);
-  let source = gen.source;
-  let strategy: GenerationStrategy = gen.strategy;
-  emit(mkPhase("generate", "ok", "Candidate drafted", generator.kind));
+  emit(
+    mkPhase(
+      "generate",
+      "start",
+      generator.kind === "llm" ? "Generating with model" : "Composing from archetype",
+      generator.modelId ?? undefined,
+    ),
+  );
+  let source: string;
+  let strategy: GenerationStrategy;
+  try {
+    const gen = await generator.generate(req);
+    source = gen.source;
+    strategy = gen.strategy;
+    emit(mkPhase("generate", "ok", "Candidate drafted", generator.modelId ?? generator.kind));
+  } catch (err) {
+    // The model call itself failed (bad key, rate limit, network) — fall back
+    // to a guaranteed template rather than erroring out.
+    emit(mkPhase("generate", "warn", "Model unavailable — using template", (err as Error).message));
+    source = deterministicFallback(req);
+    strategy = "repair-fallback";
+  }
 
   // ── 3-5. Validate → Compile → Repair loop ──
   let bundle: string | undefined;
@@ -131,9 +147,22 @@ export async function materialize(
 
     attempt += 1;
     emit(mkPhase("repair", "start", "Repairing (attempt " + attempt + ")", String(attempt)));
-    const repaired = await generator.repair(req, source, errors);
-    source = repaired.source;
-    strategy = repaired.strategy;
+    try {
+      const repaired = await generator.repair(req, source, errors);
+      source = repaired.source;
+      strategy = repaired.strategy;
+    } catch (err) {
+      // Repair call failed — heal with a guaranteed template immediately.
+      emit(mkPhase("repair", "warn", "Model unavailable — using template", (err as Error).message));
+      source = deterministicFallback(req);
+      strategy = "repair-fallback";
+      const fb = await compileSource(source);
+      if (!fb.ok || !fb.bundle) {
+        throw new Error("Fallback template failed to compile: " + fb.errors.join("; "));
+      }
+      bundle = fb.bundle;
+      break;
+    }
   }
 
   // ── 6. Package ──
@@ -148,6 +177,7 @@ export async function materialize(
     tokens: { accent: ing.params.accent, surface: base.surface, text: textTokens.primary },
     hash,
     strategy,
+    model: strategy === "deterministic" || strategy === "repair-fallback" ? null : generator.modelId,
     elapsedMs: Date.now() - started,
     createdAt: new Date().toISOString(),
   };

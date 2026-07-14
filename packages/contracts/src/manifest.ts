@@ -24,7 +24,11 @@ export interface ManifestTokens {
  * How a materialized app was produced. Lets the canvas surface provenance and
  * lets us reason about trust boundaries.
  */
-export type GenerationStrategy = "deterministic" | "anthropic" | "repair-fallback";
+export type GenerationStrategy =
+  | "deterministic"
+  | "anthropic"
+  | "openai"
+  | "repair-fallback";
 
 export interface AppManifest {
   /** Stable content-addressed id (== bundle hash). */
@@ -43,6 +47,8 @@ export interface AppManifest {
   readonly hash: string;
   /** How this app was generated. */
   readonly strategy: GenerationStrategy;
+  /** The model id that generated it, when an LLM was used (else null). */
+  readonly model: string | null;
   /** Wall-clock milliseconds the pipeline took end-to-end. */
   readonly elapsedMs: number;
   /** ISO timestamp of materialization. */

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MountSandbox } from "@spectra/sandbox";
-import type { MaterializeResult } from "@spectra/contracts";
+import { findModel, type MaterializeResult } from "@spectra/contracts";
 import { springs } from "@/lib/motion";
 
 export function AppFrame({
@@ -22,6 +22,12 @@ export function AppFrame({
   const { manifest, bundle } = result;
   const [faulted, setFaulted] = useState<string | null>(null);
 
+  // Honest provenance: Spectra is the engine; when an LLM generated the app we
+  // show which model (the user's own choice), else "Spectra Engine" (template).
+  const engineLabel = manifest.model
+    ? (findModel(manifest.model)?.label ?? manifest.model)
+    : "Spectra Engine";
+
   return (
     <motion.div
       layout
@@ -38,8 +44,18 @@ export function AppFrame({
             style={{ background: manifest.tokens.accent, boxShadow: `0 0 10px ${manifest.tokens.accent}` }}
           />
           <span className="text-sm font-medium text-zinc-100">{manifest.name}</span>
-          <span className="rounded-full border border-white/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-zinc-500">
-            {manifest.strategy === "repair-fallback" ? "healed" : manifest.strategy} · {manifest.archetype}
+          <span
+            className="rounded-full border px-2 py-0.5 font-mono text-[10px] font-medium tracking-wide"
+            style={{
+              borderColor: "rgba(124,92,255,0.35)",
+              background: "rgba(124,92,255,0.08)",
+              color: "#c4b5fd",
+            }}
+          >
+            Spectra
+          </span>
+          <span className="hidden font-mono text-[10px] uppercase tracking-wide text-zinc-500 sm:block">
+            {engineLabel} · {manifest.archetype}
           </span>
           <span className="ml-auto hidden font-mono text-[11px] text-zinc-600 sm:block">
             {manifest.elapsedMs}ms{manifest.hash ? ` · ${manifest.hash.slice(0, 8)}` : ""}

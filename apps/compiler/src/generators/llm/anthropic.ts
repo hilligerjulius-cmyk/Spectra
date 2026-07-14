@@ -1,46 +1,36 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Config } from "../../config";
-import type { Generator, GenerationRequest } from "../index";
-import { log } from "../../util/logger";
-import { SYSTEM_PROMPT, buildUserPrompt, buildRepairPrompt } from "./prompt";
-import { extractComponentSource } from "./schema";
+import type { ModelInfo } from "@spectra/contracts";
 
 /**
- * The Anthropic adapter. Activated only when `SPECTRA_LLM=anthropic` and a key
- * is present. Its output is NEVER trusted — it flows through the same
- * validate → compile → repair loop as any other candidate, with a deterministic
- * template as the ultimate fallback.
+ * One completion from a Claude model. Uses adaptive thinking + medium effort on
+ * models that support it (Opus 4.8/4.7, Sonnet 5, Fable 5); Haiku 4.5 rejects
+ * those, so it runs a plain request. No sampling params (removed on 4.7+).
  */
-export function createAnthropicGenerator(config: Config): Generator | null {
-  if (!config.anthropic.apiKey) return null;
-  const client = new Anthropic({ apiKey: config.anthropic.apiKey });
-  const model = config.anthropic.model;
+export async function completeAnthropic(
+  apiKey: string,
+  model: ModelInfo,
+  system: string,
+  user: string,
+): Promise<string> {
+  const client = new Anthropic({ apiKey });
 
-  const complete = async (userContent: string): Promise<string> => {
-    const message = await client.messages.create({
-      model,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: userContent }],
-    });
-    const text = message.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-    return extractComponentSource(text);
+  const params: Anthropic.Messages.MessageCreateParamsNonStreaming = {
+    model: model.id,
+    max_tokens: 4096,
+    system,
+    messages: [{ role: "user", content: user }],
   };
+  if (model.supportsEffort) {
+    // Typed loosely: these fields exist on current models but may post-date the
+    // installed SDK's param types.
+    const extra = params as unknown as Record<string, unknown>;
+    extra.thinking = { type: "adaptive" };
+    extra.output_config = { effort: "medium" };
+  }
 
-  return {
-    kind: "anthropic",
-    async generate(req: GenerationRequest) {
-      log.info("llm:generate", { model, archetype: req.archetype });
-      const source = await complete(buildUserPrompt(req));
-      return { source, strategy: "anthropic" };
-    },
-    async repair(_req, previous, errors) {
-      log.warn("llm:repair", { errors: errors.length });
-      const source = await complete(buildRepairPrompt(previous, errors));
-      return { source, strategy: "anthropic" };
-    },
-  };
+  const message = await client.messages.create(params);
+  return message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
 }
