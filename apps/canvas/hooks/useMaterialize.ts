@@ -34,6 +34,13 @@ export function useMaterialize() {
     setState(INITIAL);
   }, []);
 
+  /** Cancel an in-flight materialization and return to idle. */
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setState(INITIAL);
+  }, []);
+
   const markMounted = useCallback(() => {
     setState((s) => (s.status === "materializing" ? { ...s, status: "mounted" } : s));
   }, []);
@@ -84,5 +91,5 @@ export function useMaterialize() {
     }
   }, []);
 
-  return { ...state, run, reset, markMounted };
+  return { ...state, run, reset, stop, markMounted };
 }
