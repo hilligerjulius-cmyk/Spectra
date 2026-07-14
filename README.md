@@ -36,14 +36,19 @@ app is compiled and mounted before you in real time.
    `eval`/`fetch`/`localStorage`/dynamic-import) provide defense in depth. A React error boundary
    means a faulty app can never crash the canvas.
 
-### Hybrid generation
+### Generation
 
-- **Deterministic (default):** a fast intent-grammar classifies your request into one of nine
-  hand-authored, guaranteed-valid archetypes — **todo, kanban, calculator, dashboard, timer,
-  notes, form, pricing, landing** — and materializes it instantly. **Zero API keys, fully offline.**
-- **LLM (opt-in):** set `SPECTRA_LLM=anthropic` and `ANTHROPIC_API_KEY` to generate open-ended apps
-  with Claude. Its output still runs the *full* validate → compile → repair loop — the model is
-  never trusted blindly, and a deterministic template is always the ultimate fallback.
+- **LLM (primary):** add `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` and pick a model in the UI
+  — **Claude** (Haiku 4.5, Sonnet 5, Opus 4.8, Fable 5) and **OpenAI** (GPT-5, GPT-4.1, GPT-4o
+  mini). Better model → better app. The UI only offers models whose provider key is configured,
+  and keys stay **server-side**.
+- **Deterministic templates (safety net):** with no key — or if the model's output can't be
+  healed, or the model API call itself fails — a fast intent-grammar materializes one of nine
+  hand-authored, guaranteed-valid archetypes (**todo, kanban, calculator, dashboard, timer,
+  notes, form, pricing, landing**). **Zero keys, fully offline.**
+
+Every candidate — LLM or template — runs the *full* validate → compile → repair loop, so the
+**zero-broken-app guarantee holds regardless of which model you pick or whether it fails.**
 
 ---
 
@@ -66,15 +71,18 @@ materialize. Everything runs offline with zero configuration.
 > in-browser app render needs outbound network access to that host. On a restricted network the
 > pipeline, phases, and morph still run; only the final in-iframe render is affected.
 
-### Optional: open-ended LLM generation
+### Optional: LLM generation + model picker
 
 ```bash
 cp .env.example .env
-# edit .env:
-#   SPECTRA_LLM=anthropic
+# edit .env — add either or both:
 #   ANTHROPIC_API_KEY=sk-ant-...
+#   OPENAI_API_KEY=sk-...
+#   SPECTRA_DEFAULT_MODEL=claude-sonnet-5   # optional
 pnpm dev
 ```
+
+The model picker then appears under the command bar, offering the models whose key is set.
 
 ---
 
@@ -91,8 +99,9 @@ second service to wire up and **no environment variables are required**.
 
 Because a real browser can reach the CDN, the sandbox renders the live app fully in production.
 
-**Optional env:**
-- `SPECTRA_LLM=anthropic` + `ANTHROPIC_API_KEY` — enable open-ended LLM generation.
+**Optional env (set in the Railway service's Variables):**
+- `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` — enable LLM generation + the model picker.
+- `SPECTRA_DEFAULT_MODEL` — the model used when a request doesn't specify one.
 - `COMPILER_URL=https://…` — switch to a **two-service** topology: the canvas proxies to a
   standalone Fastify compiler (run `pnpm --filter @spectra/compiler start` as its own service)
   instead of running the pipeline in-process.
