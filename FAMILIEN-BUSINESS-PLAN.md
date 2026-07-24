@@ -49,11 +49,14 @@ Julius hat mir eine vollständige Zusammenfassung des Videos geliefert – **Abs
 | **1. Google-Sichtbarkeits-Paket** | „Man findet Sie nicht bei Google" → vollständiges Google-Business-Profil (Fotos, Öffnungszeiten, Leistungen, Bewertungs-Link), fertig in 5 Tagen | **149 € einmalig** |
 | **2. Website-Starter** | „Keine/veraltete Website" → moderne 1-Seiten-Website (Handy-tauglich, Impressum, Kontakt), fertig in 10 Tagen | **399 € einmalig** |
 | **3. Digital-Betreuung** *(wiederkehrend – wie im Video: Monats-Kunden!)* | „Keine Zeit, das zu pflegen" → wir halten Website & Google-Profil aktuell + 2 Posts/Monat | **49 €/Monat, monatlich kündbar** |
-| **4. KI-Telefonassistent** *(Ausbaustufe, direkt aus dem Video)* | „Verpasste Anrufe = verlorene Kunden" → KI nimmt Anrufe an, macht Termine | später, ab ~99 €/Monat |
+| **4. KI-Telefonassistent** *(Ausbaustufe, direkt aus dem Video)* | „Verpasste Anrufe = verlorene Kunden" → KI nimmt Anrufe an, macht Termine | 199 €/Monat |
+| **5. 🏆 Digital-Chef-Paket** *(unser 1.000-€-Produkt – Julius' Ziel)* | „Sie brauchen eine ganze Digital-Abteilung, haben aber keine" → alles aus einer Hand: KI-Telefonassistent + Website + Google + 8 Posts/Monat + Monatsreport, ein Ansprechpartner | **990 €/Monat** |
+
+**Die Preis-Leiter (so kommen wir zum 1.000-€-Produkt):** Niemand zahlt einem neuen Anbieter ohne Referenzen 990 €/Monat – auch im Video gilt: erst schnell verkaufen und beweisen, dann ausbauen. Der Weg: Kunde startet bei 149 € (Paket 1) → 49 €/Monat Betreuung → KI-Telefon 199 €/Monat → Digital-Chef 990 €/Monat. **Zielkunden für Paket 5:** Betriebe, bei denen EIN neuer Kunde Hunderte bis Tausende Euro wert ist – Zahnärzte, Physiotherapie-Praxen, Kanzleien, Immobilienmakler, Autohäuser. Nur dort rechnet sich 990 €/Monat sofort („bringt einen einzigen Patienten mehr im Monat = bezahlt sich selbst"). **Ziel: erster Paket-5-Kunde, sobald 3 Referenzen + 1 laufender KI-Telefon-Kunde da sind** (realistisch Monat 4–6).
 
 **Pilot-Regel für die ersten 3 Kunden:** Paket 1 für **99 €** / Paket 2 für **299 €** – im Tausch gegen eine ehrliche Google-Bewertung und die Erlaubnis, sie als Referenz zu zeigen. Ab Kunde 4 gelten die Festpreise, keine Rabatt-Verhandlungen (produktisiert = fester Preis).
 
-**Bestseller-Kombi zum Anbieten:** Paket 1 + 3 zusammen = 149 € Start + 49 €/Monat. Paket 3 ist der Langfrist-Hebel: **10 Betreuungs-Kunden à 49 € ≈ 500 €/Monat wiederkehrend** – die kleine Version von Martells „100 × 1.000 $".
+**Bestseller-Kombi zum Anbieten:** Paket 1 + 3 zusammen = 149 € Start + 49 €/Monat. Die Mathematik: **2 Digital-Chef-Kunden à 990 € + 10 Betreuungs-Kunden à 49 € ≈ 2.500 €/Monat wiederkehrend** – Martells „100 × 1.000 $"-Logik in unserer Größe.
 
 ### Rollenverteilung
 
@@ -137,3 +140,4 @@ Julius 5–7 h/Woche (Wochenende), Schule geht vor · Luise führt die Direktans
 | 24.07.2026 | **Steps anhand von Julius' Video-Zusammenfassung korrigiert:** Umsatz-Mathe, Zeit/Geld/Status, 4-Kriterien-Check, Direktansprache statt „Sell by Chat"-Playbook, KI-Telefonassistent als Beispiel ergänzt; „One-Page-Offer" entfernt (war nicht im Video) | Echte Videoinhalte ersetzen Recherche |
 | 24.07.2026 | Paket 3 (Monats-Betreuung) neu aufgenommen | Video empfiehlt wiederkehrende Monats-Kunden (100 × 1.000 $-Logik, bei uns 10 × 50 €) |
 | 24.07.2026 | **Festpreise beschlossen:** 149 € / 399 € / 49 €·Monat, Pilot-Regel 99 €/299 € für die ersten 3 Kunden gegen Bewertung + Referenz | Julius wollte konkrete Verkaufsentscheidung; produktisiert = Festpreis ohne Verhandlung |
+| 24.07.2026 | **Paket 5 „Digital-Chef" für 990 €/Monat ergänzt** (KI-Telefon + Website + Google + Content + Report) als Ziel-Produkt mit Preis-Leiter; Zielkunden: Praxen, Kanzleien, Makler, Autohäuser | Julius will das 1.000-€/Monat-Produkt aus dem Video; ehrlicher Weg: erst Referenzen über die kleinen Pakete, erster 990-€-Kunde realistisch Monat 4–6 |
