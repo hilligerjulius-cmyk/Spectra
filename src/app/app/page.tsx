@@ -6,9 +6,10 @@ import {
   StoreIcon,
   UsersIcon,
 } from "lucide-react";
+import { and, eq } from "drizzle-orm";
 import { requireOrg } from "@/server/auth/guards";
 import { withOrg } from "@/server/db/client";
-import { auditLog } from "@/server/db/schema";
+import { agentInstance, approvalRequest, auditLog, task } from "@/server/db/schema";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,9 +27,8 @@ export default async function OverviewPage() {
   const ctx = await requireOrg();
 
   // Reale Daten der aktiven Organisation (RLS-gescoped) — keine erfundenen Kennzahlen.
-  const { auditCount, recentEvents } = await withOrg(
-    ctx.organizationId,
-    async (tx) => {
+  const { auditCount, recentEvents, activeAgents, openApprovals, doneTasks } =
+    await withOrg(ctx.organizationId, async (tx) => {
       const [{ value: auditCount }] = await tx
         .select({ value: count() })
         .from(auditLog);
@@ -37,9 +37,20 @@ export default async function OverviewPage() {
         .from(auditLog)
         .orderBy(desc(auditLog.createdAt))
         .limit(8);
-      return { auditCount, recentEvents };
-    },
-  );
+      const [{ value: activeAgents }] = await tx
+        .select({ value: count() })
+        .from(agentInstance)
+        .where(eq(agentInstance.status, "active"));
+      const [{ value: openApprovals }] = await tx
+        .select({ value: count() })
+        .from(approvalRequest)
+        .where(eq(approvalRequest.status, "pending"));
+      const [{ value: doneTasks }] = await tx
+        .select({ value: count() })
+        .from(task)
+        .where(and(eq(task.status, "done")));
+      return { auditCount, recentEvents, activeAgents, openApprovals, doneTasks };
+    });
 
   return (
     <div className="space-y-6">
@@ -54,17 +65,19 @@ export default async function OverviewPage() {
             <CardDescription className="flex items-center gap-1.5">
               <UsersIcon className="size-3.5" /> Aktive Agenten
             </CardDescription>
-            <CardTitle className="text-2xl tabular-nums">0</CardTitle>
+            <CardTitle className="text-2xl tabular-nums">{activeAgents}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-1.5">
-              <ShieldCheckIcon className="size-3.5" /> Offene Freigaben
-            </CardDescription>
-            <CardTitle className="text-2xl tabular-nums">0</CardTitle>
-          </CardHeader>
-        </Card>
+        <Link href="/app/approvals">
+          <Card className="transition-shadow hover:shadow-md">
+            <CardHeader className="pb-2">
+              <CardDescription className="flex items-center gap-1.5">
+                <ShieldCheckIcon className="size-3.5" /> Offene Freigaben
+              </CardDescription>
+              <CardTitle className="text-2xl tabular-nums">{openApprovals}</CardTitle>
+            </CardHeader>
+          </Card>
+        </Link>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-1.5">
@@ -75,8 +88,8 @@ export default async function OverviewPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Systemzustand</CardDescription>
-            <CardTitle className="text-2xl">OK</CardTitle>
+            <CardDescription>Erledigte Aufgaben</CardDescription>
+            <CardTitle className="text-2xl tabular-nums">{doneTasks}</CardTitle>
           </CardHeader>
         </Card>
       </div>

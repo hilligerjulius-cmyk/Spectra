@@ -41,7 +41,7 @@ const serverEnvSchema = z.object({
 
   // KI-Provider (optional → ScriptedProvider als Fallback)
   ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_DEFAULT_MODEL: z.string().default("claude-sonnet-5"),
+  ANTHROPIC_DEFAULT_MODEL: z.string().default("claude-opus-5"),
   // Embeddings (optional → LocalEmbeddingProvider als Fallback)
   VOYAGE_API_KEY: z.string().optional(),
 
