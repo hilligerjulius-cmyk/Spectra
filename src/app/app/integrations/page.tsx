@@ -7,6 +7,8 @@ import {
   isConnectorAvailable,
 } from "@/server/integrations/registry";
 import { hasDemoData } from "@/server/demo/seed";
+import { getWebhookSetup } from "@/server/integrations/webhook";
+import { env } from "@/lib/env";
 import { PageHeader } from "@/components/shared/page-header";
 import { IntegrationsView, type ConnectorView } from "./integrations-view";
 
@@ -34,6 +36,7 @@ export default async function IntegrationsPage() {
   }));
 
   const demoActive = await hasDemoData(ctx.organizationId);
+  const webhook = await getWebhookSetup(ctx.organizationId);
 
   // Live-Daten der Demo-Connectoren (echte Zahlen, keine Platzhalter)
   const { inboxCount, untriagedCount, outboxCount, eventCount, recentEmails } =
@@ -83,6 +86,8 @@ export default async function IntegrationsPage() {
         demoActive={demoActive}
         stats={{ inboxCount, untriagedCount, outboxCount, eventCount }}
         recentEmails={recentEmails}
+        webhook={webhook}
+        appUrl={env.APP_URL}
       />
     </div>
   );

@@ -123,6 +123,126 @@ export async function enableDemoMode(): Promise<IntegrationActionResult> {
   }
 }
 
+/* -------------------------------------------------------------------------- */
+/* Webhook                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export interface WebhookSecretResult extends IntegrationActionResult {
+  /** Nur unmittelbar nach dem Erzeugen — danach nie wieder abrufbar. */
+  secret?: string;
+  url?: string;
+}
+
+/**
+ * Erzeugt ein neues Signaturgeheimnis. Der Klartext wird genau einmal
+ * zurückgegeben; gespeichert wird er ausschließlich verschlüsselt.
+ */
+export async function createWebhookSecret(): Promise<WebhookSecretResult> {
+  try {
+    const ctx = await requirePermission("integrations", "manage");
+    const { rotateWebhookSecret } = await import("./webhook");
+    const setup = await rotateWebhookSecret({
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+      userLabel: ctx.session.user.name,
+    });
+    revalidatePath("/app/integrations");
+    return {
+      ok: true,
+      message:
+        "Signaturgeheimnis erzeugt. Notieren Sie es jetzt — es wird nicht erneut angezeigt.",
+      secret: setup.secret,
+      url: setup.url,
+    };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* CSV                                                                        */
+/* -------------------------------------------------------------------------- */
+
+export interface CsvImportActionResult extends IntegrationActionResult {
+  imported?: number;
+  skipped?: number;
+  problems?: { row: number; reason: string }[];
+}
+
+export async function importCsvFile(
+  target: "tasks" | "deals",
+  content: string,
+): Promise<CsvImportActionResult> {
+  try {
+    const ctx = await requirePermission("integrations", "manage");
+    if (target !== "tasks" && target !== "deals") {
+      return { ok: false, message: "Unbekanntes Importziel." };
+    }
+    const { importCsv } = await import("./csv");
+    const result = await importCsv({
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+      userLabel: ctx.session.user.name,
+      target,
+      content,
+    });
+    if (result.imported > 0) {
+      revalidatePath("/app/tasks");
+      revalidatePath("/app/integrations");
+    }
+    return {
+      ok: result.ok,
+      message: result.message,
+      imported: result.imported,
+      skipped: result.skipped,
+      problems: result.problems,
+    };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+export interface CsvExportActionResult extends IntegrationActionResult {
+  filename?: string;
+  content?: string;
+  rowCount?: number;
+}
+
+export async function exportCsvFile(
+  target: "tasks" | "deals" | "runs",
+): Promise<CsvExportActionResult> {
+  try {
+    // Export ist ein Lesevorgang; die Sicht-Berechtigung genügt.
+    const ctx = await requirePermission("integrations", "view");
+    if (!["tasks", "deals", "runs"].includes(target)) {
+      return { ok: false, message: "Unbekanntes Exportziel." };
+    }
+    const { exportCsv } = await import("./csv");
+    const result = await exportCsv({
+      organizationId: ctx.organizationId,
+      target,
+    });
+    await recordAudit({
+      organizationId: ctx.organizationId,
+      actorType: "user",
+      actorId: ctx.userId,
+      actorLabel: ctx.session.user.name,
+      action: "integration.csv_exported",
+      targetType: target,
+      summary: `CSV-Export (${target}): ${result.rowCount} Datensätze.`,
+    });
+    return {
+      ok: true,
+      message: `${result.rowCount} Datensätze exportiert.`,
+      filename: result.filename,
+      content: result.content,
+      rowCount: result.rowCount,
+    };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
 export async function disableDemoMode(): Promise<IntegrationActionResult> {
   try {
     const ctx = await requirePermission("integrations", "manage");

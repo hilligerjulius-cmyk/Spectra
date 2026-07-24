@@ -29,6 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataExchange, type WebhookView } from "./data-exchange";
 
 export interface ConnectorView {
   key: string;
@@ -72,6 +73,8 @@ export function IntegrationsView({
   demoActive,
   stats,
   recentEmails,
+  webhook,
+  appUrl,
 }: {
   connectors: ConnectorView[];
   canManage: boolean;
@@ -83,6 +86,8 @@ export function IntegrationsView({
     eventCount: number;
   };
   recentEmails: EmailView[];
+  webhook: WebhookView | null;
+  appUrl: string;
 }) {
   const router = useRouter();
   const [pendingKey, setPendingKey] = React.useState<string | null>(null);
@@ -224,6 +229,7 @@ export function IntegrationsView({
       <Tabs defaultValue="connectors">
         <TabsList>
           <TabsTrigger value="connectors">Connectoren</TabsTrigger>
+          <TabsTrigger value="exchange">Webhook & CSV</TabsTrigger>
           <TabsTrigger value="mailbox">Demo-Postfach</TabsTrigger>
         </TabsList>
 
@@ -268,6 +274,14 @@ export function IntegrationsView({
               ))}
             </div>
           </section>
+        </TabsContent>
+
+        <TabsContent value="exchange">
+          <DataExchange
+            webhook={webhook}
+            canManage={canManage}
+            appUrl={appUrl}
+          />
         </TabsContent>
 
         <TabsContent value="mailbox">
