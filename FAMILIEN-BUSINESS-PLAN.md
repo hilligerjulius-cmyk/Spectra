@@ -44,14 +44,16 @@ Julius hat mir eine vollständige Zusammenfassung des Videos geliefert – **Abs
 
 **Nischen-Check nach den 4 Video-Kriterien:** ① Interessiert Julius (Technik)? → *zu bestätigen, Frage B* · ② Können wir es? → ja (PC, KI-Tools, Luises Ansprache) · ③ Echtes Problem? → ja, viele Betriebe sind online unsichtbar und verlieren Kunden (= kostet sie **Zeit und Geld**, Video-Step 2) · ④ Zahlen Kunden heute schon? → ja, Agenturen verlangen dafür ein Vielfaches – **Konkurrenz = Marktbeweis**.
 
-| Paket (produktisiert) | Problem → Ergebnis | Preis (Idee) |
+| Paket (produktisiert) | Problem → Ergebnis | **Festpreis (beschlossen)** |
 |---|---|---|
-| **1. Google-Sichtbarkeits-Paket** | „Man findet Sie nicht" → vollständiges Google-Business-Profil in 5 Tagen | 149 € einmalig |
-| **2. Website-Starter** | „Keine/veraltete Website" → moderne 1-Seiten-Website mit Impressum in 10 Tagen | 349–499 € einmalig |
-| **3. Digital-Betreuung** *(wiederkehrend – wie im Video: Monats-Kunden!)* | „Keine Zeit, das zu pflegen" → wir halten Website, Google-Profil & Posts aktuell | 39–59 €/Monat |
+| **1. Google-Sichtbarkeits-Paket** | „Man findet Sie nicht bei Google" → vollständiges Google-Business-Profil (Fotos, Öffnungszeiten, Leistungen, Bewertungs-Link), fertig in 5 Tagen | **149 € einmalig** |
+| **2. Website-Starter** | „Keine/veraltete Website" → moderne 1-Seiten-Website (Handy-tauglich, Impressum, Kontakt), fertig in 10 Tagen | **399 € einmalig** |
+| **3. Digital-Betreuung** *(wiederkehrend – wie im Video: Monats-Kunden!)* | „Keine Zeit, das zu pflegen" → wir halten Website & Google-Profil aktuell + 2 Posts/Monat | **49 €/Monat, monatlich kündbar** |
 | **4. KI-Telefonassistent** *(Ausbaustufe, direkt aus dem Video)* | „Verpasste Anrufe = verlorene Kunden" → KI nimmt Anrufe an, macht Termine | später, ab ~99 €/Monat |
 
-Paket 3 ist der wichtigste Langfrist-Hebel: **10 Betreuungs-Kunden à 50 € = 500 €/Monat wiederkehrend** – die kleine Version von Martells „100 × 1.000 $".
+**Pilot-Regel für die ersten 3 Kunden:** Paket 1 für **99 €** / Paket 2 für **299 €** – im Tausch gegen eine ehrliche Google-Bewertung und die Erlaubnis, sie als Referenz zu zeigen. Ab Kunde 4 gelten die Festpreise, keine Rabatt-Verhandlungen (produktisiert = fester Preis).
+
+**Bestseller-Kombi zum Anbieten:** Paket 1 + 3 zusammen = 149 € Start + 49 €/Monat. Paket 3 ist der Langfrist-Hebel: **10 Betreuungs-Kunden à 49 € ≈ 500 €/Monat wiederkehrend** – die kleine Version von Martells „100 × 1.000 $".
 
 ### Rollenverteilung
 
@@ -134,3 +136,4 @@ Julius 5–7 h/Woche (Wochenende), Schule geht vor · Luise führt die Direktans
 | 24.07.2026 | Video identifiziert (Dan Martell), Steps zunächst aus recherchierten Quellen | Screenshot von Julius + Web-Recherche |
 | 24.07.2026 | **Steps anhand von Julius' Video-Zusammenfassung korrigiert:** Umsatz-Mathe, Zeit/Geld/Status, 4-Kriterien-Check, Direktansprache statt „Sell by Chat"-Playbook, KI-Telefonassistent als Beispiel ergänzt; „One-Page-Offer" entfernt (war nicht im Video) | Echte Videoinhalte ersetzen Recherche |
 | 24.07.2026 | Paket 3 (Monats-Betreuung) neu aufgenommen | Video empfiehlt wiederkehrende Monats-Kunden (100 × 1.000 $-Logik, bei uns 10 × 50 €) |
+| 24.07.2026 | **Festpreise beschlossen:** 149 € / 399 € / 49 €·Monat, Pilot-Regel 99 €/299 € für die ersten 3 Kunden gegen Bewertung + Referenz | Julius wollte konkrete Verkaufsentscheidung; produktisiert = Festpreis ohne Verhandlung |
