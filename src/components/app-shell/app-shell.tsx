@@ -15,18 +15,21 @@ import { SidebarNav } from "./sidebar-nav";
 import { OrgSwitcher, type OrgSummary } from "./org-switcher";
 import { UserMenu } from "./user-menu";
 import { CommandMenu } from "./command-menu";
+import { NotificationBell } from "./notification-bell";
 
 export function AppShell({
   user,
   activeOrg,
   organizations,
   role,
+  unreadNotifications,
   children,
 }: {
   user: { name: string; email: string };
   activeOrg: OrgSummary;
   organizations: OrgSummary[];
   role: string;
+  unreadNotifications: number;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -80,6 +83,7 @@ export function AppShell({
 
           <div className="flex flex-1 items-center justify-end gap-2">
             <CommandMenu />
+            <NotificationBell unread={unreadNotifications} />
             <ThemeToggle />
             <UserMenu name={user.name} email={user.email} role={role} />
           </div>

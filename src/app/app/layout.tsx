@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { requireOrg } from "@/server/auth/guards";
 import { adminDb } from "@/server/db/client";
 import { member, organization } from "@/server/db/schema";
+import { countUnread } from "@/server/notifications/service";
 import { AppShell } from "@/components/app-shell/app-shell";
 
 export default async function AppLayout({
@@ -23,12 +24,15 @@ export default async function AppLayout({
     name: "Organisation",
   };
 
+  const unread = await countUnread(ctx.organizationId, ctx.userId);
+
   return (
     <AppShell
       user={{ name: ctx.session.user.name, email: ctx.session.user.email }}
       activeOrg={activeOrg}
       organizations={memberships}
       role={ctx.role}
+      unreadNotifications={unread}
     >
       {children}
     </AppShell>

@@ -12,3 +12,4 @@ export * from "./connectors";
 export * from "./knowledge";
 export * from "./billing";
 export * from "./onboarding";
+export * from "./notifications";

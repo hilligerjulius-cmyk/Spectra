@@ -451,6 +451,16 @@ export async function executeRun(
         aktionstyp: action.actionType,
         risiko: action.riskLevel,
       });
+      // Eine wartende Freigabe muss jemanden erreichen — sonst bleibt der
+      // Vorgang unbemerkt liegen. Sandbox-Läufe melden nur in der Anwendung.
+      await notifyApprovalRecipient({
+        organizationId,
+        instance,
+        sandbox: run!.sandbox,
+        title: action.title,
+        reasoning: action.reasoning,
+        riskLevel: action.riskLevel,
+      });
       pendingApprovals++;
       return { mode: "approval_requested", approvalId: approval!.id };
     },
@@ -561,10 +571,89 @@ export async function executeRun(
       return await finalize("cancelled", "Lauf wurde durch Nutzer abgebrochen.");
     }
     const message = err instanceof Error ? err.message : String(err);
+    // Ein fehlgeschlagener Lauf bleibt sonst unbemerkt, bis jemand ins
+    // Aktivitätsprotokoll schaut.
+    await notifyRunFailure({
+      organizationId,
+      instance,
+      sandbox: run.sandbox,
+      capabilityName: capability.name,
+      message,
+    });
     if (err instanceof RunLimitError) {
       return await finalize("failed", `Limit erreicht: ${message}`, undefined, message);
     }
     return await finalize("failed", `Lauf fehlgeschlagen: ${message}`, undefined, message);
+  }
+}
+
+/**
+ * Meldet eine wartende Freigabe an die verantwortliche Person — ersatzweise an
+ * alle Entscheidungsberechtigten. Fehler beim Melden dürfen den Lauf nicht
+ * scheitern lassen: Die Freigabe existiert bereits und ist im Approval Center
+ * sichtbar; die Benachrichtigung ist ein zusätzlicher Weg, kein Ersatz.
+ */
+async function notifyApprovalRecipient(params: {
+  organizationId: string;
+  instance: typeof agentInstance.$inferSelect;
+  sandbox: boolean;
+  title: string;
+  reasoning: string;
+  riskLevel: RiskLevel;
+}): Promise<void> {
+  try {
+    const { notify, notifyOrganization } = await import(
+      "@/server/notifications/service"
+    );
+    const payload = {
+      organizationId: params.organizationId,
+      type: "approval_required" as const,
+      title: `Freigabe erforderlich: ${params.title}`,
+      body: `${params.instance.displayName} hat eine Aktion vorbereitet (Risiko: ${params.riskLevel}). Begründung: ${params.reasoning}`,
+      href: "/app/approvals",
+      sandbox: params.sandbox,
+    };
+    if (params.instance.responsibleUserId) {
+      await notify({ ...payload, userId: params.instance.responsibleUserId });
+      return;
+    }
+    // Ohne verantwortliche Person: alle Rollen mit Entscheidungsrecht.
+    await notifyOrganization({
+      ...payload,
+      roles: ["owner", "admin", "manager", "member"],
+    });
+  } catch (err) {
+    console.error("Freigabe-Benachrichtigung fehlgeschlagen:", err);
+  }
+}
+
+/** Meldet einen fehlgeschlagenen Lauf; scheitert nie lautstark. */
+async function notifyRunFailure(params: {
+  organizationId: string;
+  instance: typeof agentInstance.$inferSelect;
+  sandbox: boolean;
+  capabilityName: string;
+  message: string;
+}): Promise<void> {
+  try {
+    const { notify, notifyOrganization } = await import(
+      "@/server/notifications/service"
+    );
+    const payload = {
+      organizationId: params.organizationId,
+      type: "agent_failed" as const,
+      title: `${params.instance.displayName}: Lauf fehlgeschlagen`,
+      body: `Fähigkeit "${params.capabilityName}" konnte nicht abgeschlossen werden. Grund: ${params.message}`,
+      href: `/app/agents/${params.instance.id}`,
+      sandbox: params.sandbox,
+    };
+    if (params.instance.responsibleUserId) {
+      await notify({ ...payload, userId: params.instance.responsibleUserId });
+    } else {
+      await notifyOrganization({ ...payload, roles: ["owner", "admin"] });
+    }
+  } catch (err) {
+    console.error("Fehler-Benachrichtigung fehlgeschlagen:", err);
   }
 }
 
