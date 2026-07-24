@@ -58,6 +58,19 @@ Julius hat mir eine vollständige Zusammenfassung des Videos geliefert – **Abs
 
 **Bestseller-Kombi zum Anbieten:** Paket 1 + 3 zusammen = 149 € Start + 49 €/Monat. Die Mathematik: **2 Digital-Chef-Kunden à 990 € + 10 Betreuungs-Kunden à 49 € ≈ 2.500 €/Monat wiederkehrend** – Martells „100 × 1.000 $"-Logik in unserer Größe.
 
+### ⭐ Die Simpel-Variante (Empfehlung für den Start!)
+
+Julius' berechtigter Einwand: Der Plan oben ist für den Anfang zu komplex. Ein Familien-Business funktioniert am besten mit **einem Produkt, einem Preis, einem klaren Ablauf**. Deshalb:
+
+**Variante 1 – „Ein-Produkt-Start" (meine Empfehlung):** Wir verkaufen **nur Paket 1** – das Google-Profil für **99 € Festpreis**. Sonst nichts.
+- **Warum simpel:** Kein Website-Bau, keine Monats-Verträge, keine KI. Julius kann ein Google-Profil an einem Nachmittag einrichten. Geliefert in 3 Tagen, Geld sofort.
+- **Der Ablauf ist immer gleich:** Luise & Julius laufen durch Jena → Betrieb sehen → auf dem Handy googeln → schlechtes/kein Profil? → reingehen: „Wussten Sie, dass man Sie bei Google nicht findet? Wir machen das komplett fertig für 99 €." → Tom hat eine 1-Seiten-Auftragsvorlage dabei.
+- **Alles andere (Pakete 2–5) bleibt im Dokument als spätere Ausbaustufe** – erst relevant, wenn die ersten 10 Google-Profile verkauft sind. Kunden fragen dann von selbst: „Könnt ihr auch unsere Website machen?"
+
+**Variante 2 – ganz ohne Digital-Kram (falls es noch simpler sein soll):** Klassisches Familien-Business mit den 2 Autos: **Entrümpeln + Weiterverkaufen**. Über Kleinanzeigen kostenlose/billige Möbel & Geräte abholen, Julius fotografiert und stellt sie online, Luise verhandelt, verkauft wird mit Gewinn. Startkapital fast 0 €, Geld ab Woche 1, null Technik-Risiko. Nachteil: körperliche Arbeit, kein wiederkehrendes Einkommen, wächst nicht.
+
+**Mein Rat:** Variante 1. Sie ist genauso simpel wie Variante 2, passt aber zu euren Rollen (Technik/Marketing/Recht), hat höhere Stundenlöhne und den Wachstumspfad schon eingebaut – ihr müsst ihn nur nicht sofort gehen.
+
 ### Rollenverteilung
 
 | Person | Rolle | Aufgaben |
@@ -141,3 +154,4 @@ Julius 5–7 h/Woche (Wochenende), Schule geht vor · Luise führt die Direktans
 | 24.07.2026 | Paket 3 (Monats-Betreuung) neu aufgenommen | Video empfiehlt wiederkehrende Monats-Kunden (100 × 1.000 $-Logik, bei uns 10 × 50 €) |
 | 24.07.2026 | **Festpreise beschlossen:** 149 € / 399 € / 49 €·Monat, Pilot-Regel 99 €/299 € für die ersten 3 Kunden gegen Bewertung + Referenz | Julius wollte konkrete Verkaufsentscheidung; produktisiert = Festpreis ohne Verhandlung |
 | 24.07.2026 | **Paket 5 „Digital-Chef" für 990 €/Monat ergänzt** (KI-Telefon + Website + Google + Content + Report) als Ziel-Produkt mit Preis-Leiter; Zielkunden: Praxen, Kanzleien, Makler, Autohäuser | Julius will das 1.000-€/Monat-Produkt aus dem Video; ehrlicher Weg: erst Referenzen über die kleinen Pakete, erster 990-€-Kunde realistisch Monat 4–6 |
+| 24.07.2026 | **Simpel-Variante ergänzt und zum Start empfohlen:** nur Paket 1 (Google-Profil, 99 € Festpreis), ein Produkt, ein Ablauf; Pakete 2–5 werden zu späteren Ausbaustufen. Alternative ohne Digital: Entrümpeln/Reselling mit den 2 Autos | Julius' Einwand: Plan zu komplex für den Start. Simpel = höhere Erfolgschance; Wachstumspfad bleibt erhalten |
