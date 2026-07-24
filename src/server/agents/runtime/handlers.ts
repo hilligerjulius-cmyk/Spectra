@@ -12,8 +12,20 @@ import type { CapabilityHandler } from "./engine";
 
 const handlers = new Map<string, CapabilityHandler>();
 
-export function registerHandler(key: string, handler: CapabilityHandler): void {
+export function registerHandler(
+  key: string,
+  handler: CapabilityHandler,
+  options: { overwrite?: boolean } = {},
+): void {
+  // Vertiefte Handler werden zuerst geladen; die Archetyp-Registrierung darf
+  // sie nicht verdrängen (overwrite: false).
+  if (options.overwrite === false && handlers.has(key)) return;
   handlers.set(key, handler);
+}
+
+/** Nur für Tests/Diagnose: Ist für diesen Schlüssel ein Handler registriert? */
+export function hasHandler(key: string): boolean {
+  return handlers.has(key);
 }
 
 export function resolveHandler(

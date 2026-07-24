@@ -235,7 +235,8 @@ export const salesAgents = [
         name: "Versand nach Freigabe",
         description: "Versendet freigegebene Follow-ups über die E-Mail-Integration.",
         defaultAutomationLevel: 3,
-        maxAutomationLevel: 4,
+        // Versand nach außen bleibt freigabepflichtig (Spec §4.11).
+        maxAutomationLevel: 3,
         riskLevel: "high",
         requiredTools: ["email.send", "crm.write"],
       },

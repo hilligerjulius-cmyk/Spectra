@@ -268,6 +268,111 @@ export class ScriptedProvider implements AIProvider {
         };
       }
 
+      case "generic.classify": {
+        const category = includesAny(lower, ["rechnung", "zahlung", "beleg", "mahnung", "buchung"])
+          ? "finanzen"
+          : includesAny(lower, ["bewerbung", "lebenslauf", "urlaub", "krank", "personal"])
+            ? "personal"
+            : includesAny(lower, ["störung", "fehler", "beschwerde", "reklamation", "support"])
+              ? "support"
+              : includesAny(lower, ["angebot", "anfrage", "lead", "interesse", "abschluss"])
+                ? "vertrieb"
+                : includesAny(lower, ["projekt", "aufgabe", "termin", "frist", "lieferung"])
+                  ? "operativ"
+                  : "allgemein";
+        const priority = includesAny(lower, ["dringend", "sofort", "eskalation", "kritisch", "ausfall"])
+          ? "urgent"
+          : includesAny(lower, ["frist", "deadline", "überfällig", "verzug", "wichtig"])
+            ? "high"
+            : includesAny(lower, ["bei gelegenheit", "kein stress", "irgendwann"])
+              ? "low"
+              : "normal";
+        const ownerByCategory: Record<string, string> = {
+          finanzen: "Buchhaltung",
+          personal: "Personalabteilung",
+          support: "Kundenservice",
+          vertrieb: "Vertrieb",
+          operativ: "Projektleitung",
+        };
+        // Kurze Eingaben tragen zu wenig Signal für eine belastbare Einordnung.
+        const confidence =
+          input.trim().length < 40
+            ? "gering"
+            : category === "allgemein"
+              ? "mittel"
+              : "hoch";
+        return {
+          category,
+          priority,
+          suggestedOwnerRole: ownerByCategory[category] ?? null,
+          rationale: `Regelbasierte Einordnung anhand von Schlüsselwörtern: Kategorie "${category}", Priorität "${priority}".`,
+          confidence,
+        };
+      }
+
+      case "generic.extract": {
+        const fields: {
+          name: string;
+          value: string;
+          confidence: "hoch" | "mittel" | "gering";
+        }[] = [];
+        const dates = extractDates(input);
+        for (const [index, date] of dates.slice(0, 3).entries()) {
+          fields.push({
+            name: index === 0 ? "Datum" : `Weiteres Datum ${index}`,
+            value: date,
+            confidence: "hoch",
+          });
+        }
+        const amount = input.match(/(?:EUR|€)\s*([\d.,]+)|([\d.,]+)\s*(?:EUR|€)/);
+        if (amount) {
+          fields.push({
+            name: "Betrag",
+            value: `${(amount[1] ?? amount[2])!} EUR`,
+            confidence: "mittel",
+          });
+        }
+        const email = input.match(/\b[\w.+-]+@[\w-]+\.[\w.]{2,}\b/)?.[0];
+        if (email) {
+          fields.push({ name: "E-Mail", value: email, confidence: "hoch" });
+        }
+        const company = input
+          .split("\n")
+          .map((l) => l.trim())
+          .find((l) => l.length > 3 && l.length < 80 && /(GmbH|AG|KG|UG|e\.K\.|Ltd|Inc)/.test(l));
+        if (company) {
+          fields.push({ name: "Organisation", value: company, confidence: "mittel" });
+        }
+        const missingFields: string[] = [];
+        if (dates.length === 0) missingFields.push("Datum");
+        if (!amount) missingFields.push("Betrag");
+        if (!email) missingFields.push("Kontaktadresse");
+        return {
+          fields,
+          missingFields,
+          notes:
+            fields.length === 0
+              ? "Die regelbasierte Extraktion hat keine verwertbaren Felder gefunden."
+              : null,
+        };
+      }
+
+      case "generic.draft": {
+        const role = context.match(/^Agentenrolle:\s*(.+)$/im)?.[1]?.trim();
+        return {
+          title: `Entwurf${role ? ` — ${role}` : ""}`,
+          body:
+            "Guten Tag,\n\n" +
+            `zum folgenden Vorgang liegt dieser Entwurf vor:\n\n${firstSentences(input, 3) || "[Keine auswertbaren Eingangsdaten]"}\n\n` +
+            "[PLATZHALTER: inhaltliche Aussage, Zahlen und Zusagen ergänzen — der regelbasierte Demo-Modus formuliert bewusst keine verbindlichen Inhalte]\n\n" +
+            "Mit freundlichen Grüßen",
+          openQuestions: [
+            "Inhaltliche Aussage ergänzen (im Entwurf als Platzhalter markiert)",
+            "Empfänger, Ansprechperson und Versandzeitpunkt bestätigen",
+          ],
+        };
+      }
+
       default: {
         const _exhaustive: never = taskType;
         throw new Error(`ScriptedProvider: unbekannter Task-Typ ${String(_exhaustive)}`);

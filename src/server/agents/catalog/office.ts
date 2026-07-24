@@ -101,7 +101,8 @@ export const officeAgents = [
         name: "Versand nach Freigabe",
         description: "Versendet freigegebene Antworten.",
         defaultAutomationLevel: 3,
-        maxAutomationLevel: 4,
+        // Versand nach außen bleibt freigabepflichtig (Spec §4.11).
+        maxAutomationLevel: 3,
         riskLevel: "high",
         requiredTools: ["email.send"],
       },

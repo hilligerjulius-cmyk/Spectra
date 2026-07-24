@@ -744,4 +744,89 @@ const riskWatchHandler: CapabilityHandler = async (ctx) => {
 };
 
 registerHandler("chief-of-staff:risk-watch", riskWatchHandler);
-registerHandler("chief-of-staff:prioritize", dailyBriefingHandler);
+
+/**
+ * Priorisierung: ordnet die offenen Aufgaben nach Fälligkeit und gesetzter
+ * Priorität und schlägt eine Reihenfolge vor. Bewusst regelbasiert statt über
+ * das Sprachmodell — die Rangfolge ist damit nachvollziehbar und stabil.
+ * Es werden ausschließlich `tasks.read` und `tasks.write` genutzt, also genau
+ * die Werkzeuge, die die Fähigkeit im Katalog deklariert.
+ */
+const prioritizeHandler: CapabilityHandler = async (ctx) => {
+  const tasksResult = await ctx.invokeTool("tasks.read", {
+    status: ["open", "in_progress"],
+    limit: 50,
+  });
+  const openTasks =
+    (tasksResult.data as {
+      id: string;
+      title: string;
+      priority: string;
+      dueAt: string | null;
+    }[]) ?? [];
+
+  if (openTasks.length === 0) {
+    return { summary: "Keine offenen Aufgaben — keine Priorisierung nötig." };
+  }
+
+  const rank = { urgent: 0, high: 1, normal: 2, low: 3 } as const;
+  const now = Date.now();
+  const scored = openTasks
+    .map((t) => {
+      const due = t.dueAt ? new Date(t.dueAt).getTime() : null;
+      const overdue = due !== null && due < now;
+      const dueSoon =
+        due !== null && !overdue && due <= now + 3 * 24 * 60 * 60 * 1000;
+      return { ...t, overdue, dueSoon, due };
+    })
+    .sort((a, b) => {
+      // Überfällig schlägt Priorität; danach Priorität, danach Fälligkeit.
+      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+      const pr =
+        (rank[a.priority as keyof typeof rank] ?? 2) -
+        (rank[b.priority as keyof typeof rank] ?? 2);
+      if (pr !== 0) return pr;
+      return (a.due ?? Number.MAX_SAFE_INTEGER) - (b.due ?? Number.MAX_SAFE_INTEGER);
+    });
+
+  const overdueCount = scored.filter((t) => t.overdue).length;
+  await ctx.recordStep("reason", "Rangfolge gebildet", {
+    aufgaben: scored.length,
+    ueberfaellig: overdueCount,
+    regel: "überfällig > Priorität > Fälligkeitsdatum",
+  });
+
+  const top = scored.slice(0, 5);
+  await ctx.prepareAction({
+    actionType: "task.create",
+    title: "Fokusliste für heute",
+    reasoning: `Aus ${scored.length} offenen Aufgaben nach der Regel "überfällig vor Priorität vor Fälligkeit" gebildet; ${overdueCount} davon sind überfällig.`,
+    riskLevel: "low",
+    payload: {
+      title: `Fokusliste (${top.length} Aufgaben)`,
+      description: top
+        .map(
+          (t, i) =>
+            `${i + 1}. ${t.title} — ${t.priority}${t.overdue ? ", überfällig" : t.dueSoon ? ", bald fällig" : ""}`,
+        )
+        .join("\n"),
+      priority: overdueCount > 0 ? "high" : "normal",
+      source: { runId: ctx.runId, capability: ctx.capability.key },
+    },
+    affectedData: { betrachtete_aufgaben: scored.length },
+  });
+
+  return {
+    summary: `${scored.length} offene Aufgaben priorisiert (${overdueCount} überfällig). Vorschlag: ${top[0]!.title}.`,
+    output: {
+      order: scored.map((t) => ({
+        id: t.id,
+        title: t.title,
+        priority: t.priority,
+        overdue: t.overdue,
+      })),
+    },
+  };
+};
+
+registerHandler("chief-of-staff:prioritize", prioritizeHandler);

@@ -74,8 +74,33 @@ function defaultSystemPrompt(d: AgentDefinitionInput): string {
   ].join("\n");
 }
 
+/**
+ * Höchste Automatisierungsstufe je Risikostufe.
+ *
+ * Das setzt die Zusage aus dem Systemprompt und Spec §4.11 im Katalog selbst
+ * durch: Fähigkeiten mit hohem Risiko — Versand nach außen, Zahlungen,
+ * personelle oder rechtliche Wirkung — enden bei Stufe 3 („Freigabe
+ * erforderlich"). Auch wer den Katalog erweitert, kann diese Grenze nicht
+ * versehentlich aufheben; die Deckelung greift beim Erzeugen der Definition.
+ */
+const RISK_LEVEL_CEILING = { low: 5, medium: 4, high: 3 } as const;
+
 /** Erzeugt eine vollständige Agentendefinition mit dokumentierten Defaults. */
 export function defineAgent(input: AgentDefinitionInput): AgentDefinitionData {
+  const capabilities = input.capabilities.map((cap) => {
+    const ceiling = RISK_LEVEL_CEILING[cap.riskLevel];
+    const maxAutomationLevel = Math.min(cap.maxAutomationLevel, ceiling) as
+      typeof cap.maxAutomationLevel;
+    return {
+      ...cap,
+      maxAutomationLevel,
+      defaultAutomationLevel: Math.min(
+        cap.defaultAutomationLevel,
+        maxAutomationLevel,
+      ) as typeof cap.defaultAutomationLevel,
+    };
+  });
+
   return {
     requiredIntegrations: [],
     optionalIntegrations: [],
@@ -89,5 +114,6 @@ export function defineAgent(input: AgentDefinitionInput): AgentDefinitionData {
     implementationDepth: "standard",
     systemPrompt: defaultSystemPrompt(input),
     ...input,
+    capabilities,
   };
 }

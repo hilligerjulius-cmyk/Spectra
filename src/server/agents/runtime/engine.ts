@@ -18,9 +18,12 @@ import {
 import { checkUsageAllowance, recordUsage } from "@/server/billing/service";
 import { getTool, type ToolContext, type ToolResult } from "./tools";
 import { resolveHandler } from "./handlers";
-// Seiteneffekte: vollständige Tool-Registry und vertiefte Capability-Handler.
+// Seiteneffekte: vollständige Tool-Registry und Capability-Handler.
+// Reihenfolge ist bedeutsam — vertiefte Handler zuerst, danach füllen die
+// Archetyp-Handler alle übrigen Katalogfähigkeiten auf, ohne sie zu verdrängen.
 import "./tools-init";
 import "./handlers-core";
+import "./handlers-init";
 
 /**
  * Agent-Runtime-Engine: führt Läufe mit Schritten, Limits, Kosten-Tracking

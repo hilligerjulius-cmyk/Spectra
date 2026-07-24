@@ -40,7 +40,8 @@ export const customerServiceAgents = [
         name: "Automatische Antwort",
         description: "Beantwortet klar gedeckte Standardfragen automatisch.",
         defaultAutomationLevel: 3,
-        maxAutomationLevel: 4,
+        // Versand nach außen bleibt freigabepflichtig (Spec §4.11).
+        maxAutomationLevel: 3,
         riskLevel: "high",
         requiredTools: ["tickets.write", "email.send", "knowledge.search"],
       },

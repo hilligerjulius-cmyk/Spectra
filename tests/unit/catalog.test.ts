@@ -33,6 +33,25 @@ describe("Agentenkatalog", () => {
     expect(new Set(personas).size).toBe(personas.length);
   });
 
+  it("deckelt Fähigkeiten mit hohem Risiko bei Stufe 3 (Freigabe erforderlich)", () => {
+    // Spec §4.11: Aktionen mit finanzieller, rechtlicher, personeller oder
+    // reputationsbezogener Wirkung erfordern grundsätzlich eine menschliche
+    // Freigabe. defineAgent() setzt diese Grenze durch — hier wird sie belegt.
+    const ceiling = { low: 5, medium: 4, high: 3 } as const;
+    for (const agent of agentCatalog) {
+      for (const cap of agent.capabilities) {
+        expect(
+          cap.maxAutomationLevel,
+          `${agent.slug}:${cap.key} (Risiko ${cap.riskLevel})`,
+        ).toBeLessThanOrEqual(ceiling[cap.riskLevel]);
+        expect(
+          cap.defaultAutomationLevel,
+          `${agent.slug}:${cap.key} — Standardstufe über Obergrenze`,
+        ).toBeLessThanOrEqual(cap.maxAutomationLevel);
+      }
+    }
+  });
+
   it("jede Definition ist vollständig und konsistent", () => {
     for (const agent of agentCatalog) {
       expect(agent.capabilities.length, agent.slug).toBeGreaterThan(0);
