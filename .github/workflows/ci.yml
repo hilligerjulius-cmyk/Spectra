@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create database roles and databases
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres <<'SQL'
+          CREATE ROLE workforce_owner LOGIN PASSWORD 'workforce_owner_dev' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+          CREATE ROLE workforce_app LOGIN PASSWORD 'workforce_app_dev' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+          CREATE DATABASE workforce_dev OWNER workforce_owner;
+          CREATE DATABASE workforce_test OWNER workforce_owner;
+          SQL
+          for db in workforce_dev workforce_test; do
+            PGPASSWORD=postgres psql -h localhost -U postgres -d "$db" \
+              -c "CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pgcrypto;" \
+              -c "GRANT USAGE, CREATE ON SCHEMA public TO workforce_owner; GRANT USAGE ON SCHEMA public TO workforce_app;"
+          done
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Run migrations (dev + test DB)
+        run: |
+          pnpm db:migrate
+          DATABASE_ADMIN_URL=postgres://workforce_owner:workforce_owner_dev@localhost:5432/workforce_test pnpm db:migrate
+
+      - name: Unit & integration tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

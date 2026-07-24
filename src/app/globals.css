@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+ * WORKFORCE OS Design Tokens
+ * Heller, neutraler Grundstil mit einer Akzentfarbe (Indigo) und
+ * Statusfarben für Agentenzustände. Dark Mode über .dark-Klasse (next-themes).
+ * ------------------------------------------------------------------------- */
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.511 0.222 276.9); /* Indigo 600 */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.5 0.01 260);
+  --accent: oklch(0.955 0.01 275);
+  --accent-foreground: oklch(0.32 0.12 276);
+  --destructive: oklch(0.577 0.245 27.3);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0.003 260);
+  --input: oklch(0.922 0.003 260);
+  --ring: oklch(0.511 0.222 276.9);
+
+  /* Statusfarben: aktiv, pausiert, Warnung, Fehler, Freigabe */
+  --status-active: oklch(0.627 0.17 149.2); /* Emerald 600 */
+  --status-paused: oklch(0.551 0.023 264.4); /* Grau */
+  --status-warning: oklch(0.681 0.162 75.8); /* Amber 600 */
+  --status-error: oklch(0.577 0.245 27.3); /* Rot */
+  --status-approval: oklch(0.588 0.158 241.9); /* Sky 600 */
+
+  --chart-1: oklch(0.511 0.222 276.9);
+  --chart-2: oklch(0.627 0.17 149.2);
+  --chart-3: oklch(0.681 0.162 75.8);
+  --chart-4: oklch(0.588 0.158 241.9);
+  --chart-5: oklch(0.627 0.265 303.9);
+
+  --sidebar: oklch(0.985 0.002 260);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-accent: oklch(0.94 0.008 275);
+  --sidebar-accent-foreground: oklch(0.28 0.1 276);
+  --sidebar-border: oklch(0.922 0.003 260);
+
+  --radius: 0.55rem;
+}
+
+.dark {
+  --background: oklch(0.155 0.008 275);
+  --foreground: oklch(0.94 0.004 260);
+  --card: oklch(0.195 0.01 275);
+  --card-foreground: oklch(0.94 0.004 260);
+  --popover: oklch(0.195 0.01 275);
+  --popover-foreground: oklch(0.94 0.004 260);
+  --primary: oklch(0.63 0.19 276.9);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.24 0.012 275);
+  --secondary-foreground: oklch(0.94 0.004 260);
+  --muted: oklch(0.24 0.012 275);
+  --muted-foreground: oklch(0.68 0.015 265);
+  --accent: oklch(0.27 0.03 276);
+  --accent-foreground: oklch(0.88 0.04 276);
+  --destructive: oklch(0.66 0.21 25.7);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.28 0.012 275);
+  --input: oklch(0.3 0.012 275);
+  --ring: oklch(0.63 0.19 276.9);
+
+  --status-active: oklch(0.72 0.17 152);
+  --status-paused: oklch(0.62 0.02 264);
+  --status-warning: oklch(0.78 0.16 78);
+  --status-error: oklch(0.66 0.21 25.7);
+  --status-approval: oklch(0.7 0.14 240);
+
+  --chart-1: oklch(0.63 0.19 276.9);
+  --chart-2: oklch(0.72 0.17 152);
+  --chart-3: oklch(0.78 0.16 78);
+  --chart-4: oklch(0.7 0.14 240);
+  --chart-5: oklch(0.7 0.24 304);
+
+  --sidebar: oklch(0.175 0.01 275);
+  --sidebar-foreground: oklch(0.94 0.004 260);
+  --sidebar-accent: oklch(0.26 0.03 276);
+  --sidebar-accent-foreground: oklch(0.9 0.03 276);
+  --sidebar-border: oklch(0.26 0.012 275);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-status-active: var(--status-active);
+  --color-status-paused: var(--status-paused);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --color-status-approval: var(--status-approval);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    outline-color: color-mix(in oklch, var(--color-ring) 50%, transparent);
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
