@@ -8,6 +8,20 @@
       "when": 1784922646700,
       "tag": "0000_odd_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784923007080,
+      "tag": "0001_peaceful_slyde",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784923008311,
+      "tag": "0002_rls_core",
+      "breakpoints": true
     }
   ]
 }
