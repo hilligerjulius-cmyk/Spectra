@@ -2,6 +2,7 @@ import Link from "next/link";
 import { count, desc } from "drizzle-orm";
 import {
   ActivityIcon,
+  RocketIcon,
   ShieldCheckIcon,
   StoreIcon,
   UsersIcon,
@@ -9,8 +10,16 @@ import {
 import { and, eq } from "drizzle-orm";
 import { requireOrg } from "@/server/auth/guards";
 import { withOrg } from "@/server/db/client";
-import { agentInstance, approvalRequest, auditLog, task } from "@/server/db/schema";
+import {
+  agentInstance,
+  approvalRequest,
+  auditLog,
+  onboardingState,
+  task,
+} from "@/server/db/schema";
+import { ONBOARDING_STEP_COUNT } from "@/server/onboarding/steps";
 import { PageHeader } from "@/components/shared/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -52,12 +61,40 @@ export default async function OverviewPage() {
       return { auditCount, recentEvents, activeAgents, openApprovals, doneTasks };
     });
 
+  // Hinweis auf die Einrichtung nur, solange sie tatsächlich offen ist.
+  const [onboarding] = await withOrg(ctx.organizationId, (tx) =>
+    tx
+      .select({
+        completed: onboardingState.completed,
+        currentStep: onboardingState.currentStep,
+      })
+      .from(onboardingState)
+      .where(eq(onboardingState.organizationId, ctx.organizationId)),
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Overview"
         description="Der aktuelle Zustand Ihrer digitalen Belegschaft."
       />
+
+      {onboarding && !onboarding.completed ? (
+        <Alert variant="info">
+          <RocketIcon />
+          <AlertTitle>Einrichtung fortsetzen</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              Sie sind bei Schritt {onboarding.currentStep} von{" "}
+              {ONBOARDING_STEP_COUNT}. Der Assistent führt Sie bis zum
+              Sandbox-Testlauf und zur Aktivierung.
+            </p>
+            <Button size="sm" asChild>
+              <Link href="/onboarding/einrichtung">Weiter einrichten</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

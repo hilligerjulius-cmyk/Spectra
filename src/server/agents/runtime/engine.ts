@@ -15,6 +15,7 @@ import {
   type AutomationLevel,
   type RiskLevel,
 } from "@/server/agents/catalog";
+import { checkUsageAllowance, recordUsage } from "@/server/billing/service";
 import { getTool, type ToolContext, type ToolResult } from "./tools";
 import { resolveHandler } from "./handlers";
 // Seiteneffekte: vollständige Tool-Registry und vertiefte Capability-Handler.
@@ -49,6 +50,14 @@ export class RunCancelledError extends Error {
   constructor() {
     super("Lauf wurde abgebrochen.");
     this.name = "RunCancelledError";
+  }
+}
+
+/** Das Abrechnungs-Kontingent der Organisation ist ausgeschöpft. */
+export class QuotaExceededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QuotaExceededError";
   }
 }
 
@@ -161,6 +170,17 @@ export async function startRun(params: StartRunParams): Promise<RunOutcome> {
   if (!sandbox && instance.status !== "active") {
     throw new Error(
       `Agent ist ${instance.status === "paused" ? "pausiert" : "nicht aktiv"} — es werden keine Läufe ausgeführt.`,
+    );
+  }
+
+  // Abrechnungs-Kontingent prüfen, bevor Kosten entstehen. Sandbox-Läufe
+  // sind ausgenommen, damit das Testen nie am Kontingent scheitert.
+  const allowance = await checkUsageAllowance(params.organizationId, {
+    sandbox,
+  });
+  if (!allowance.allowed) {
+    throw new QuotaExceededError(
+      allowance.reason ?? "Das Abrechnungs-Kontingent ist ausgeschöpft.",
     );
   }
 
@@ -433,12 +453,26 @@ export async function executeRun(
     },
   };
 
+  let usageSettled = false;
+  /**
+   * Schreibt den Verbrauch genau einmal je Lauf fort — auch bei Abbruch oder
+   * Fehler, weil dabei ebenfalls KI-Kosten entstanden sein können.
+   * Sandbox-Läufe zählen nicht gegen das Kontingent.
+   */
+  async function settleUsage() {
+    if (usageSettled || run!.sandbox) return;
+    usageSettled = true;
+    await recordUsage(organizationId, "agent_run", 1);
+    await recordUsage(organizationId, "ai_cost", totalCostDeciCents);
+  }
+
   async function finalize(
     status: string,
     summary: string,
     output?: Record<string, unknown>,
     error?: string,
   ): Promise<RunOutcome> {
+    await settleUsage();
     await withOrg(organizationId, (tx) =>
       tx
         .update(agentRun)
@@ -489,6 +523,7 @@ export async function executeRun(
     });
     if (pendingApprovals > 0) {
       const summary = `${result.summary} — ${pendingApprovals} Aktion(en) warten auf Freigabe.`;
+      await settleUsage();
       await withOrg(organizationId, (tx) =>
         tx
           .update(agentRun)

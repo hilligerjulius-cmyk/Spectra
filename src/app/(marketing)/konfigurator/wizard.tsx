@@ -29,124 +29,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-/* ---------- Auswahloptionen ---------- */
-
-const groessen = ["1-4", "5-25", "26-100", "101-250"] as const;
-
-const softwareOptions = [
-  "Gmail", "Outlook", "Google Calendar", "Microsoft Calendar", "HubSpot",
-  "Salesforce", "Pipedrive", "Slack", "Microsoft Teams", "Notion",
-  "Google Drive", "OneDrive", "Dropbox", "Stripe", "sevdesk", "lexoffice", "DATEV",
-];
-
-const zeitfresserOptions = [
-  { key: "email", label: "E-Mail-Flut & Posteingang" },
-  { key: "termine", label: "Terminkoordination" },
-  { key: "followups", label: "Follow-ups & Nachfassen" },
-  { key: "angebote", label: "Angebote erstellen" },
-  { key: "rechnungen", label: "Rechnungen & Belege" },
-  { key: "support", label: "Support-Anfragen" },
-  { key: "wissen", label: "Wissen suchen & dokumentieren" },
-  { key: "fristen", label: "Fristen & wiederkehrende Pflichten" },
-  { key: "projekte", label: "Projektstatus einsammeln" },
-  { key: "hr", label: "Personaladministration" },
-];
-
-const umsatzOptions = [
-  { key: "liegengebliebene-leads", label: "Leads werden zu langsam bearbeitet" },
-  { key: "langsame-angebote", label: "Angebote gehen zu spät raus" },
-  { key: "keine-followups", label: "Offene Angebote werden nicht nachgefasst" },
-  { key: "churn", label: "Bestandskunden wandern ab" },
-  { key: "keine-leads", label: "Zu wenig qualifizierte Zielkunden" },
-];
-
-const departmentOptions = [
-  { key: "sales", label: "Sales" },
-  { key: "office", label: "Office" },
-  { key: "finance", label: "Finance Operations" },
-  { key: "hr", label: "HR Operations" },
-  { key: "customer-service", label: "Customer Service" },
-  { key: "operations", label: "Operations" },
-  { key: "knowledge", label: "Knowledge" },
-];
-
-const automatisierungOptions = [
-  { key: "beobachten", label: "Nur beobachten und melden" },
-  { key: "entwurf", label: "Entwürfe erstellen, ich entscheide" },
-  { key: "freigabe", label: "Vorbereiten, ich gebe frei" },
-  { key: "autonom", label: "Risikoarmes selbstständig erledigen" },
-];
-
-const vorgaengeOptions = ["<100", "100-500", "500-2000", ">2000"] as const;
-
-/* ---------- Hilfskomponenten ---------- */
-
-function MultiChips({
-  options,
-  selected,
-  onToggle,
-}: {
-  options: { key: string; label: string }[];
-  selected: string[];
-  onToggle: (key: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((opt) => {
-        const active = selected.includes(opt.key);
-        return (
-          <button
-            key={opt.key}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onToggle(opt.key)}
-            className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors cursor-pointer ${
-              active
-                ? "border-primary bg-primary/10 font-medium text-primary"
-                : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-            }`}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function SingleChips({
-  options,
-  selected,
-  onSelect,
-}: {
-  options: readonly string[] | { key: string; label: string }[];
-  selected: string;
-  onSelect: (key: string) => void;
-}) {
-  const normalized = options.map((o) =>
-    typeof o === "string" ? { key: o, label: o } : o,
-  );
-  return (
-    <div className="flex flex-wrap gap-2">
-      {normalized.map((opt) => (
-        <button
-          key={opt.key}
-          type="button"
-          aria-pressed={selected === opt.key}
-          onClick={() => onSelect(opt.key)}
-          className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors cursor-pointer ${
-            selected === opt.key
-              ? "border-primary bg-primary/10 font-medium text-primary"
-              : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+import { MultiChips, SingleChips } from "@/components/shared/choice-chips";
+import {
+  automatisierungOptions,
+  departmentOptions,
+  groessenOptions as groessen,
+  softwareOptions,
+  umsatzOptions,
+  vorgaengeOptions,
+  zeitfresserOptions,
+} from "@/server/configurator/options";
 
 /* ---------- Wizard ---------- */
 

@@ -49,7 +49,7 @@ export function CreateOrganizationForm({ userName }: { userName: string }) {
     await authClient.organization.setActive({ organizationId: data.id });
     setLoading(false);
     toast.success(`Willkommen, ${userName.split(" ")[0]}!`);
-    router.push("/app");
+    router.push("/onboarding/einrichtung");
     router.refresh();
   }
 
