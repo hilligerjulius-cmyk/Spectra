@@ -8,3 +8,5 @@ export * from "./auth";
 export * from "./core";
 export * from "./agents";
 export * from "./runtime";
+export * from "./connectors";
+export * from "./knowledge";

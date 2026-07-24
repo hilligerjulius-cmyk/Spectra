@@ -50,6 +50,20 @@
       "when": 1784925339066,
       "tag": "0006_rls_runtime",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784926467967,
+      "tag": "0007_large_fixer",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784926469236,
+      "tag": "0008_rls_connectors_knowledge",
+      "breakpoints": true
     }
   ]
 }

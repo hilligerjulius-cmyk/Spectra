@@ -108,6 +108,14 @@ export async function decideApproval(
       message: `Für den Aktionstyp "${approval.actionType}" ist kein Ausführungs-Tool registriert.`,
     };
   }
+  // Defense in Depth: die menschliche Freigabe ersetzt die Autonomie-Prüfung
+  // des Agenten, nicht aber die Tool-Freigabe der Organisation.
+  if (instance && !instance.allowedTools.includes(toolKey)) {
+    return {
+      ok: false,
+      message: `Das Tool "${toolKey}" ist für diesen Agenten nicht freigegeben. Bitte zuerst die Berechtigungen anpassen.`,
+    };
+  }
 
   const run = approval.runId
     ? await withOrg(params.organizationId, async (tx) => {

@@ -224,34 +224,18 @@ registerTool({
 });
 
 /* ------------------------------------------------------------------------- */
-/* Platzhalter für Integrations-Tools: klare Fehlermeldung statt Attrappe     */
+/* Platzhalter: jedes im Katalog referenzierte, aber noch nicht implementierte */
+/* Tool wirft einen klaren Fehler statt Ergebnisse vorzutäuschen (Spec §4.5).  */
 /* ------------------------------------------------------------------------- */
 
-const INTEGRATION_TOOL_KEYS = [
-  "web.research",
-  "crm.read",
-  "crm.write",
-  "contacts.read",
-  "contacts.write",
-  "deals.read",
-  "files.read",
-  "files.write",
-  "accounting.read",
-  "tickets.read",
-  "tickets.write",
-  "hr.read",
-  "hr.write",
-  "pricing.calculate",
-  "agents.dispatch",
-  "agents.pause",
-  "reports.generate",
-  "email.label",
-  "calendar.write",
-  "calendar.propose",
-];
-
-for (const key of INTEGRATION_TOOL_KEYS) {
-  if (!registry.has(key)) {
+/**
+ * Registriert für alle im Agentenkatalog referenzierten Tool-Schlüssel, die
+ * keine echte Implementierung haben, einen Platzhalter. Wird nach dem Laden
+ * der echten Tools aufgerufen, damit implementierte Tools Vorrang haben.
+ */
+export function registerCatalogPlaceholders(catalogToolKeys: string[]): void {
+  for (const key of catalogToolKeys) {
+    if (registry.has(key)) continue;
     registerTool({
       key,
       name: key,
@@ -265,4 +249,16 @@ for (const key of INTEGRATION_TOOL_KEYS) {
       },
     });
   }
+}
+
+/** Prüft, ob ein Tool eine echte Implementierung besitzt (kein Platzhalter). */
+export function isToolImplemented(key: string): boolean {
+  return implementedTools.has(key);
+}
+
+const implementedTools = new Set(registry.keys());
+
+/** Markiert nachträglich registrierte Tools als echt implementiert. */
+export function markImplemented(keys: string[]): void {
+  for (const key of keys) implementedTools.add(key);
 }

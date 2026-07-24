@@ -18,6 +18,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      // `server-only` wirft außerhalb einer React-Server-Umgebung; in
+      // Node-Integrationstests wird es durch einen No-op ersetzt.
+      "server-only": path.resolve(__dirname, "tests/stubs/server-only.ts"),
     },
   },
 });

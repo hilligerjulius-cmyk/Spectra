@@ -17,7 +17,8 @@ import {
 } from "@/server/agents/catalog";
 import { getTool, type ToolContext, type ToolResult } from "./tools";
 import { resolveHandler } from "./handlers";
-// Seiteneffekt: registriert die vertieften Capability-Handler.
+// Seiteneffekte: vollständige Tool-Registry und vertiefte Capability-Handler.
+import "./tools-init";
 import "./handlers-core";
 
 /**
@@ -54,7 +55,9 @@ export class RunCancelledError extends Error {
 /** Zuordnung Freigabe-Aktionstyp → ausführendes Tool. */
 export const ACTION_TOOL_MAP: Record<string, string> = {
   "task.create": "tasks.write",
+  "briefing.create": "briefing.write",
   "notification.send": "notify.send",
+  "email.draft": "email.draft",
   "email.send": "email.send",
   "calendar.create": "calendar.write",
 };

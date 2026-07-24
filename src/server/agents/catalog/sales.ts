@@ -218,16 +218,17 @@ export const salesAgents = [
         defaultAutomationLevel: 1,
         maxAutomationLevel: 4,
         riskLevel: "low",
-        requiredTools: ["crm.read", "deals.read", "email.read"],
+        requiredTools: ["deals.read", "crm.read", "email.read"],
       },
       {
         key: "followup-drafting",
         name: "Follow-up-Entwürfe",
-        description: "Erstellt personalisierte Follow-up-Nachrichten zur Freigabe.",
+        description:
+          "Erstellt personalisierte Follow-up-Nachrichten und legt sie zur Freigabe vor; nach Genehmigung erfolgt der Versand.",
         defaultAutomationLevel: 3,
         maxAutomationLevel: 3,
-        riskLevel: "medium",
-        requiredTools: ["crm.read", "email.draft"],
+        riskLevel: "high",
+        requiredTools: ["deals.read", "email.draft", "email.send"],
       },
       {
         key: "followup-send",

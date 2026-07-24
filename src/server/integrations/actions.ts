@@ -1,0 +1,144 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
+import { requirePermission, PermissionError } from "@/server/auth/guards";
+import { withOrg } from "@/server/db/client";
+import { integration } from "@/server/db/schema";
+import { recordAudit } from "@/server/audit";
+import { getConnector, isConnectorAvailable } from "./registry";
+import { seedDemoData, clearDemoData } from "@/server/demo/seed";
+
+export interface IntegrationActionResult {
+  ok: boolean;
+  message: string;
+}
+
+function failure(err: unknown): IntegrationActionResult {
+  if (err instanceof PermissionError) return { ok: false, message: err.message };
+  console.error("Integration-Action fehlgeschlagen:", err);
+  return {
+    ok: false,
+    message: err instanceof Error ? err.message : "Aktion fehlgeschlagen.",
+  };
+}
+
+export async function connectIntegration(
+  connectorKey: string,
+): Promise<IntegrationActionResult> {
+  try {
+    const ctx = await requirePermission("integrations", "manage");
+    const def = getConnector(connectorKey);
+    if (!def) return { ok: false, message: "Unbekannter Connector." };
+    if (!isConnectorAvailable(def)) {
+      return {
+        ok: false,
+        message:
+          def.status === "planned"
+            ? `${def.name} ist noch nicht implementiert.`
+            : `${def.name} benötigt Zugangsdaten (${def.requiredEnv?.join(", ")}), die derzeit nicht konfiguriert sind.`,
+      };
+    }
+    await withOrg(ctx.organizationId, (tx) =>
+      tx
+        .insert(integration)
+        .values({
+          organizationId: ctx.organizationId,
+          connectorKey,
+          status: "connected",
+          displayName: def.name,
+          connectedByUserId: ctx.userId,
+          lastSyncAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [integration.organizationId, integration.connectorKey],
+          set: { status: "connected", error: null },
+        }),
+    );
+    await recordAudit({
+      organizationId: ctx.organizationId,
+      actorType: "user",
+      actorId: ctx.userId,
+      actorLabel: ctx.session.user.name,
+      action: "integration.connected",
+      targetType: "integration",
+      targetId: connectorKey,
+      summary: `Integration "${def.name}" verbunden.`,
+    });
+    revalidatePath("/app/integrations");
+    return { ok: true, message: `${def.name} verbunden.` };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+export async function disconnectIntegration(
+  connectorKey: string,
+): Promise<IntegrationActionResult> {
+  try {
+    const ctx = await requirePermission("integrations", "manage");
+    const def = getConnector(connectorKey);
+    await withOrg(ctx.organizationId, (tx) =>
+      tx
+        .update(integration)
+        .set({ status: "disconnected" })
+        .where(eq(integration.connectorKey, connectorKey)),
+    );
+    await recordAudit({
+      organizationId: ctx.organizationId,
+      actorType: "user",
+      actorId: ctx.userId,
+      actorLabel: ctx.session.user.name,
+      action: "integration.disconnected",
+      targetType: "integration",
+      targetId: connectorKey,
+      summary: `Integration "${def?.name ?? connectorKey}" getrennt. Agenten verlieren damit den Zugriff auf diese Datenquelle.`,
+    });
+    revalidatePath("/app/integrations");
+    return { ok: true, message: `${def?.name ?? connectorKey} getrennt.` };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+/** Demo-Daten erzeugen (klar gekennzeichnet, Spec §28). */
+export async function enableDemoMode(): Promise<IntegrationActionResult> {
+  try {
+    const ctx = await requirePermission("integrations", "manage");
+    const result = await seedDemoData({
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+      userLabel: ctx.session.user.name,
+    });
+    revalidatePath("/app/integrations");
+    revalidatePath("/app/knowledge");
+    revalidatePath("/app/workforce");
+    revalidatePath("/app");
+    return {
+      ok: true,
+      message: `Demo-Daten erzeugt: ${result.emails} E-Mails, ${result.events} Termine, ${result.deals} Deals, ${result.documents} Dokumente, ${result.agents} Agenten (Sandbox).`,
+    };
+  } catch (err) {
+    return failure(err);
+  }
+}
+
+export async function disableDemoMode(): Promise<IntegrationActionResult> {
+  try {
+    const ctx = await requirePermission("integrations", "manage");
+    await clearDemoData(ctx.organizationId);
+    await recordAudit({
+      organizationId: ctx.organizationId,
+      actorType: "user",
+      actorId: ctx.userId,
+      actorLabel: ctx.session.user.name,
+      action: "demo.cleared",
+      summary: "Demo-Daten (E-Mails, Termine, Deals) entfernt.",
+    });
+    revalidatePath("/app/integrations");
+    revalidatePath("/app");
+    return { ok: true, message: "Demo-Daten entfernt." };
+  } catch (err) {
+    return failure(err);
+  }
+}

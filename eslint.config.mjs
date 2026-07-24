@@ -13,6 +13,14 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    // CommonJS-Hilfsskripte: `require()` ist hier zwingend, weil sie über
+    // `node --require` vor dem ESM-Loader ausgeführt werden.
+    files: ["**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -35,7 +35,7 @@ export const officeAgents = [
         defaultAutomationLevel: 4,
         maxAutomationLevel: 4,
         riskLevel: "low",
-        requiredTools: ["email.read", "email.label"],
+        requiredTools: ["email.read", "email.label", "notify.send"],
       },
       {
         key: "assign-owner",
