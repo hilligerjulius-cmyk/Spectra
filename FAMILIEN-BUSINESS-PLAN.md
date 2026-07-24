@@ -71,6 +71,19 @@ Julius' berechtigter Einwand: Der Plan oben ist für den Anfang zu komplex. Ein 
 
 **Mein Rat:** Variante 1. Sie ist genauso simpel wie Variante 2, passt aber zu euren Rollen (Technik/Marketing/Recht), hat höhere Stundenlöhne und den Wachstumspfad schon eingebaut – ihr müsst ihn nur nicht sofort gehen.
 
+### 🚀 Die Skalierungs-Vision (Julius' Frage: „Wie wird daraus 100k/Monat?")
+
+Julius' Einwand ist mathematisch richtig: 99 € **einmalig** skaliert nie – dafür bräuchte man 1.000 Verkäufe pro Monat, jeden Monat neu. Die Antwort aus dem Video: **Skalierung kommt nicht vom Startprodukt, sondern von „wiederkehrend" + „delegieren/automatisieren"** (Video-Step 8: erst manuell, dann Software). Das 99-€-Produkt ist nicht die Geldmaschine – es ist die **Kundengewinnungs-Maschine**.
+
+| Stufe | Was wir verkaufen | Die Mathematik | Wer macht die Arbeit |
+|-------|-------------------|----------------|---------------------|
+| **1. Jetzt** | Google-Profil, 99 € einmalig | Taschengeld + Referenzen. Skaliert nicht – **soll es auch nicht.** Hier lernen wir verkaufen. | Julius selbst |
+| **2. Ab Herbst** | + Betreuung 49 €/Monat, KI-Telefon 199 €/Monat | 10 Kunden ≈ 500–1.500 €/Monat **wiederkehrend** – Geld kommt, ohne neu zu verkaufen | Julius + KI-Tools |
+| **3. Jahr 1–2** | Digital-Chef 990 €/Monat für Praxen/Kanzleien | **100 Kunden × 990 € = 99.000 €/Monat** – exakt die Video-Rechnung „100 × 1.000 $". Nicht 1.000 Kunden – 100. | Abläufe dokumentiert, erste Freelancer/Mitarbeiter (delegieren!) |
+| **4. Die Millionen-Stufe** | Aus dem KI-Telefon-Service wird **eigene Software**, die Kunden selbst buchen | 1.000 Kunden × 99 €/**Monat** Software ≈ 100k/Monat – ohne dass pro Kunde jemand arbeitet | Software liefert; Familie besitzt und steuert |
+
+Stufe 4 ist wörtlich der Schluss des Videos: *„Viele erfolgreiche Softwareunternehmen haben die Arbeit zuerst manuell als Dienstleistung erbracht und erst später daraus eine Software entwickelt."* Der Unterschied zwischen „nicht skalierbar" und „100k/Monat" ist nicht das Startprodukt – es ist **einmalig vs. monatlich** und **selbst arbeiten vs. System arbeiten lassen**. Ehrliche Zeitangabe: Stufe 3–4 ist eine Sache von Jahren, nicht Monaten – auch bei Dan Martell selbst war es das.
+
 ### Rollenverteilung
 
 | Person | Rolle | Aufgaben |
@@ -155,3 +168,4 @@ Julius 5–7 h/Woche (Wochenende), Schule geht vor · Luise führt die Direktans
 | 24.07.2026 | **Festpreise beschlossen:** 149 € / 399 € / 49 €·Monat, Pilot-Regel 99 €/299 € für die ersten 3 Kunden gegen Bewertung + Referenz | Julius wollte konkrete Verkaufsentscheidung; produktisiert = Festpreis ohne Verhandlung |
 | 24.07.2026 | **Paket 5 „Digital-Chef" für 990 €/Monat ergänzt** (KI-Telefon + Website + Google + Content + Report) als Ziel-Produkt mit Preis-Leiter; Zielkunden: Praxen, Kanzleien, Makler, Autohäuser | Julius will das 1.000-€/Monat-Produkt aus dem Video; ehrlicher Weg: erst Referenzen über die kleinen Pakete, erster 990-€-Kunde realistisch Monat 4–6 |
 | 24.07.2026 | **Simpel-Variante ergänzt und zum Start empfohlen:** nur Paket 1 (Google-Profil, 99 € Festpreis), ein Produkt, ein Ablauf; Pakete 2–5 werden zu späteren Ausbaustufen. Alternative ohne Digital: Entrümpeln/Reselling mit den 2 Autos | Julius' Einwand: Plan zu komplex für den Start. Simpel = höhere Erfolgschance; Wachstumspfad bleibt erhalten |
+| 24.07.2026 | **Skalierungs-Vision in 4 Stufen ergänzt:** 99 € einmalig (Kundengewinnung) → wiederkehrend (49/199 €·Monat) → 100 × 990 €/Monat → eigene Software (1.000 × 99 €/Monat) | Julius' Einwand: 99 € einmalig skaliert nicht. Richtig – Skalierung kommt aus „wiederkehrend" + delegieren/automatisieren (Video-Step 8), nicht aus dem Startprodukt |
