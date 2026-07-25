@@ -25,6 +25,7 @@ APIs benötigen — oder bewusst zurückgestellte Arbeiten. Format:
 
 | Aufgabe | Grund | Voraussetzung | Dateien | Prio |
 | --- | --- | --- | --- | --- |
+| Plattform-Zugang wird über ein CLI vergeben | Es gibt bewusst keinen Weg, sich Plattformrechte aus der Anwendung heraus selbst zu geben. Der erste Zugang muss auf dem Server gesetzt werden: `pnpm platform:admin -- <e-mail> admin` | Datenbankzugriff mit der Owner-Rolle | `scripts/grant-platform-admin.ts` | Hoch |
 | Re-Indexierung bei Wechsel des Embedding-Providers | Embeddings verschiedener Provider sind nicht vergleichbar. Ein Wechsel (z. B. lokal → Voyage) macht bestehende Vektoren unbrauchbar; die Suche liefert dann Zufallstreffer | Re-Ingest aller Dokumente nach Provider-Wechsel | `src/server/knowledge/service.ts` | Hoch |
 | pg-boss-Worker für zeitgesteuerte Läufe | Die Runtime führt Läufe derzeit synchron über Server Actions aus. Für Zeitpläne und Retries im Hintergrund fehlt der Worker-Prozess | Deployment-Umgebung mit dauerhaftem Prozess | `src/server/jobs/*` | Mittel |
 | Periodenwechsel und automatische Rechnungsstellung | Verbrauchszähler laufen je Kalendermonat (`YYYY-MM`) und setzen sich damit selbst zurück; Rechnungen werden derzeit nur manuell über die Billing-Seite erzeugt. Für automatische Abrechnung fehlt der geplante Job | pg-boss-Worker (siehe oben) | `src/server/billing/service.ts` (`issueInvoice`), `src/server/jobs/*` | Mittel |
