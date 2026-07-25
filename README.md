@@ -18,10 +18,14 @@ In aktiver Entwicklung. Siehe [TODO.md](./TODO.md) für offene Punkte und
 - **UI**: Tailwind CSS 4, Radix-Primitives (shadcn-Stil), lucide-react, Recharts
 - **Datenbank**: PostgreSQL 16 + pgvector, Drizzle ORM, Row Level Security
 - **Auth**: Better Auth (E-Mail/Passwort, Verifikation, Organisationen, Rollen)
-- **Jobs/Queue**: pg-boss (Postgres-basiert, Retries, Scheduling)
 - **KI**: Anthropic (Provider-Abstraktion; deterministischer Scripted-Provider
   als Fallback ohne API-Key), Voyage-Embeddings mit lokalem Fallback
-- **Billing**: Stripe (Test-Modus) mit Mock-Fallback, serverseitige Preislogik
+- **Billing**: Stripe-Adapter (nicht gegen die echte API getestet) mit
+  Mock-Fallback, serverseitige Preislogik
+- **Jobs/Queue**: *noch nicht vorhanden.* Agentenläufe laufen synchron über
+  Server Actions. `pg-boss` ist als Abhängigkeit vorgesehen, aber es existiert
+  kein Worker-Prozess — Zeitpläne und Hintergrund-Retries fehlen entsprechend
+  (siehe [TODO.md](./TODO.md))
 
 ## Lokale Installation
 
@@ -83,6 +87,12 @@ automatisch, sobald die jeweiligen Environment-Variablen gesetzt sind — siehe
 
 ## Dokumentation
 
-Alle Dokumente liegen unter [docs/](./docs/): Architektur & ADRs, Datenmodell,
-Agenten-Entwicklungsleitfaden, Integrationsleitfaden, Sicherheits- und
-Datenschutzkonzept, Deployment, Test- und Admin-/Nutzerhandbuch.
+| Dokument | Inhalt |
+| --- | --- |
+| [docs/architektur.md](./docs/architektur.md) | Überblick, Verzeichnisstruktur, 10 ADRs, Datenfluss eines Agentenlaufs |
+| [docs/datenmodell.md](./docs/datenmodell.md) | 33 Tabellen, drei Zugriffszonen, Kernkette eines Laufs, Konventionen |
+| [docs/agent-development.md](./docs/agent-development.md) | Einen Agenten hinzufügen: Katalogeintrag, Archetypen, Handler-Regeln |
+| [docs/sicherheit.md](./docs/sicherheit.md) | Bedrohungsmodell A1–A7 mit Gegenmaßnahmen, Restrisiken und Belegen |
+| [docs/betrieb.md](./docs/betrieb.md) | Einrichtung, Umgebungsvariablen, Migrationen, Betriebsgrenzen, Fehlersuche |
+| [docs/nutzerhandbuch.md](./docs/nutzerhandbuch.md) | Einrichtung, Automatisierungsstufen, Freigaben, Rollen, Wissen |
+| [ABSCHLUSSBERICHT.md](./ABSCHLUSSBERICHT.md) | Ehrlicher Stand: implementiert / teilweise / offen, Testergebnisse, Risiken |
