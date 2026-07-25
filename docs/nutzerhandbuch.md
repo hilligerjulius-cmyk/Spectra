@@ -122,6 +122,32 @@ hochgeladenen Vertrag zitieren. Erzeugte Dokumente tragen zusätzlich „[Entwur
 im Titel. Zu jedem solchen Eintrag ist nachvollziehbar, welcher Agent ihn in
 welchem Lauf angelegt hat.
 
+## Fachdaten: Kontakte, Tickets, Personal
+
+Damit die Agenten auf echten Daten arbeiten, führt die Plattform eigene, schlanke
+Bestände. Sie ersetzen kein gewachsenes CRM, Helpdesk oder HR-System — sie sind
+das, worauf die Agenten zugreifen, solange kein Fremdsystem angebunden ist.
+
+Daten kommen über **CSV-Import** (*Integrations → Datenaustausch*), den
+**Webhook** oder die **Demo-Daten** hinein und über CSV-Export hinaus. Eine
+eigene Verwaltungsansicht zum Pflegen einzelner Datensätze gibt es noch nicht.
+
+Drei Regeln, die durchgehend gelten:
+
+- **Ein Sperrvermerk ist endgültig.** Ein Agent kann „keine Ansprache" setzen,
+  aber niemals aufheben. Gesperrte Kontakte erscheinen für Agenten gar nicht in
+  den Ergebnissen — sie können sie also auch nicht versehentlich anschreiben.
+- **Kein Agent legt Stammdaten an.** Eine Person, ein Vorgang oder ein
+  Beschäftigungsverhältnis entsteht durch eine Entscheidung, nicht durch einen
+  Agentenlauf. Fehlt ein Datensatz, sagt der Agent das.
+- **Kein Agent entscheidet einen Personalvorgang.** Ein Urlaubsantrag wird
+  formal geprüft und bleibt auf „beantragt". Genehmigen kann nur ein Mensch.
+
+Bei Personaldaten speichert die Plattform bewusst weniger als möglich: **kein
+Gehalt, keine Bankverbindung, kein Geburtsdatum, keine Gesundheitsdaten.** Ein
+Krankheitsgrund, der in einem Antrag steht, wird an keinen Agentenlauf
+weitergegeben.
+
 ## Aktivität und Protokoll
 
 Jeder Lauf ist einzeln nachvollziehbar: Auslöser, Ziel, jeder Schritt mit

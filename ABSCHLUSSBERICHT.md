@@ -11,16 +11,16 @@ ungetestet ist, steht das hier — nicht in einer Fußnote.
 
 | | |
 | --- | --- |
-| Quelldateien (`src/`) | 211 (TypeScript/TSX), ca. 34.400 Zeilen |
-| Datenbanktabellen | 33, davon 19 mandantenbezogen mit RLS-Policy |
-| SQL-Migrationen | 18 |
+| Quelldateien (`src/`) | 214 (TypeScript/TSX), ca. 36.100 Zeilen |
+| Datenbanktabellen | 37, davon 23 mandantenbezogen mit RLS-Policy |
+| SQL-Migrationen | 20 |
 | Agenten im Katalog | 57 über 8 Departments (7 Fachbereiche + Chief of Staff) |
 | Fähigkeiten | 126 (Risiko: 88 niedrig, 27 mittel, 11 hoch) |
-| Runtime-Werkzeuge | 33 vom Katalog referenziert, **23 echt implementiert**, 10 Platzhalter mit klarer Fehlermeldung |
-| Agenten mit vollem Datenzugang | **29 von 57** (25 teilweise, 3 ohne eigenen Zugang) |
+| Runtime-Werkzeuge | 33 vom Katalog referenziert, **32 echt implementiert**, 1 Platzhalter (`web.research`) |
+| Agenten mit vollem Datenzugang | **54 von 57** (3 teilweise, 0 ohne eigenen Zugang) |
 | Seiten | 19 Marketing, 18 App, 5 Admin, 3 API-Routen |
 | UI-Komponenten | 42 |
-| Tests | **156 Vitest** (21 Dateien) + **31 Playwright** = 187 |
+| Tests | **181 Vitest** (23 Dateien) + **31 Playwright** = 212 |
 
 ---
 
@@ -29,9 +29,9 @@ ungetestet ist, steht das hier — nicht in einer Fußnote.
 ```
 pnpm lint       → keine Meldungen
 pnpm typecheck  → keine Fehler
-pnpm test       → Test Files 21 passed (21) | Tests 156 passed (156)  [8,70 s]
+pnpm test       → Test Files 23 passed (23) | Tests 181 passed (181)  [10,45 s]
 pnpm build      → erfolgreich, 54 Routen
-pnpm e2e        → 31 passed (13,6 s)
+pnpm e2e        → 31 passed (12,9 s)
 ```
 
 Die Vitest-Suite läuft gegen eine echte PostgreSQL-16-Datenbank
@@ -42,8 +42,10 @@ Die Vitest-Suite läuft gegen eine echte PostgreSQL-16-Datenbank
 
 | Datei | Tests | Gegenstand |
 | --- | --- | --- |
-| `tests/rls/tenant-isolation.test.ts` | 8 | Mandantentrennung gegen die echte DB |
+| `tests/rls/tenant-isolation.test.ts` | 9 | Mandantentrennung gegen die echte DB, inklusive der vier Fachtabellen |
+| `tests/integration/tools-business.test.ts` | 22 | Schutzregeln der Fachwerkzeuge: keine erfundenen Personen, Sperrvermerke unumkehrbar, keine genehmigten Personalvorgänge, keine Gesundheitsdaten im Lauf, CSV-Import mit Dublettenmeldung |
 | `tests/integration/tools-platform.test.ts` | 20 | Selbstbegrenzungen der Plattform-Werkzeuge: keine Delegationsrekursion, keine Selbstbeauftragung, kein Anhalten im Sandbox-Lauf, keine geschätzten Beträge, Herkunft agentengeschriebener Inhalte |
+| `tests/integration/demo-seed.test.ts` | 2 | Demo-Daten erzeugen und **restlos** entfernen; enthält die Fälle, an denen die Agenten arbeiten können |
 | `tests/integration/scenarios.test.ts` | 5 | **die 5 Pflichtszenarien aus §27** |
 | `tests/integration/webhook.test.ts` | 11 | Signatur, Replay-Fenster, Nutzlastgrenzen |
 | `tests/integration/notifications.test.ts` | 10 | Typen, Präferenzen, Digest, Zeitvalidierung |
@@ -181,7 +183,39 @@ auf eigenen Tabellen arbeiten:
 | `agents.pause` | Einen Agenten anhalten | Mittleres Risiko → menschliche Freigabe; im Sandbox-Lauf wird nichts verändert; Begründung ab 10 Zeichen; idempotent |
 | `pricing.calculate` | Positionen rechnen | Reine Arithmetik ohne Modell. Nicht-numerische Angaben werden abgelehnt, statt einen plausiblen Betrag zu erzeugen; der Steuersatz gilt als übernommen, nicht als geprüft |
 
-Zwei Wirkungen davon sind erwähnenswert:
+**Fachdatenbestände (Tickets, Kontakte, Personal)**
+
+Vier Tabellen (`ticket`, `contact`, `employee`, `absence`) mit RLS-Policies und
+neun Werkzeugen darauf. Sie sind bewusst schlank — kein Ersatz für ein
+gewachsenes CRM, Helpdesk oder HR-System, sondern der Datenbestand, auf dem die
+Agenten arbeiten, solange kein Fremdsystem angebunden ist. Die
+Werkzeugschnittstelle bleibt bei einem späteren Connector dieselbe; nur die
+Quelle wechselt.
+
+| Werkzeug | Schutzregel |
+| --- | --- |
+| `tickets.write` | Legt bei unbekannter Referenz **kein** neues Ticket an. Erste Reaktion und Lösungszeitpunkt werden nur beim tatsächlichen Eintritt gesetzt und nie überschrieben — sie sind Messgrößen. |
+| `contacts.read` | Gesperrte Kontakte erscheinen standardmäßig **nicht** in Ergebnissen; ein Agent, der eine Ansprache vorbereitet, sieht sie gar nicht. |
+| `contacts.write` | Kennt den Sperrvermerk nur in eine Richtung: setzen ja, aufheben nie. Erfindet keinen Namen aus einer E-Mail-Adresse. |
+| `crm.write` | Legt keinen Vorgang an und verändert einen gesperrten Vorgang nicht. |
+| `crm.read` | Weist keine Gesamtsumme aus, wenn bei einem Vorgang der Betrag fehlt — mit Begründung im Ergebnis. |
+| `hr.read` | Liefert **keine** Abwesenheitsgründe (`note`) an den Lauf. Ein Krankheitsgrund gehört nicht in Protokolle oder Entwürfe. Vergütungs- und Gesundheitsfelder gibt es nicht einmal im Schema. |
+| `hr.write` | Erfasst Anträge mit Status „beantragt" und setzt nie `decidedAt`. Ein Agent prüft die Form; entscheiden darf nur ein Mensch. Legt keine Personalstammdaten an. |
+| `files.read` | Nennt die Wissensablage als Quelle und weist ausdrücklich aus, dass kein externer Dateispeicher angebunden ist. |
+
+Damit sind es **54 von 57 Agenten mit vollem Datenzugang**; kein Agent ist mehr
+ohne eigenen Datenzugang. Die drei verbleibenden (`lead-research`,
+`travel-planning`, `research`) brauchen `web.research`.
+
+Ergänzend: CSV-Import und Demo-Seed für die drei neuen Bestände, damit tatsächlich
+Daten hineinkommen — sonst wären die Werkzeuge auf leeren Tabellen wirkungslos.
+
+Drei Wirkungen davon sind erwähnenswert:
+
+- Ein `loadDomainContext()`-Baustein lädt in **allen** Archetyp-Handlern die
+  Fachdaten, die die Fähigkeit lesen darf, und übergibt sie als `<daten>`-Block.
+  Das war der fehlende Schritt: Werkzeuge allein bewirken nichts, wenn kein
+  Handler sie aufruft.
 
 - Das Tagesbriefing des Chief of Staff liest offene Freigaben jetzt **direkt**.
   Vorher schloss es sie aus dem Aktivitätsprotokoll — das zählte Läufe statt
@@ -203,16 +237,15 @@ Zwei Wirkungen davon sind erwähnenswert:
 | **Gmail / Google Calendar** | Als Connector registriert, Status „Zugangsdaten erforderlich", im UI so gekennzeichnet | **Der OAuth-Flow und die Adapter-Implementierung fehlen.** Es existiert bislang nur der Registry-Eintrag, nicht der Code, der Gmail tatsächlich abfragt |
 | **SMTP** | Adapter vorhanden; ohne `SMTP_URL` landen Mails in einer einsehbaren Outbox-Tabelle | Nicht gegen einen echten Server getestet |
 | **Vertiefung der Agenten** | Alle 126 Fähigkeiten laufen real und sind einzeln getestet | 13 Handler über 7 Agenten sind fachlich vertieft. Die übrigen laufen über 8 Archetyp-Handler: echte Arbeit, aber geringere fachliche Tiefe. Das ist eine bewusste Entscheidung (ADR-008), kein Versehen |
-| **Datenzugang der Agenten** | 29 der 57 Agenten haben alle benötigten Werkzeuge echt angebunden | 25 arbeiten mit eingeschränktem Zugriff und benennen die Lücke im Lauf; 3 (`lead-research`, `ticket-routing`, `complaint`) verarbeiten nur, was ihnen übergeben wird, und haben keinen eigenen Datenzugang |
+| **Datenzugang der Agenten** | **54 der 57** Agenten haben alle benötigten Werkzeuge echt angebunden | 3 (`lead-research`, `travel-planning`, `research`) fehlt `web.research`. Sie arbeiten mit ihren übrigen Quellen und benennen die Lücke im Lauf |
 
-### Was „läuft" für die 28 nicht voll angebundenen Agenten bedeutet
+### Was „läuft" für die drei nicht voll angebundenen Agenten bedeutet
 
 Alle 57 Agenten führen jede ihrer Fähigkeiten aus und liefern ein verwertbares
-Ergebnis — belegt durch `tests/integration/departments.test.ts`. Ein Agent ohne
-Datenzugang klassifiziert den übergebenen Text korrekt, benennt die fehlenden
-Anbindungen im Lauf und in der Ausgabe (`unavailableTools`) und **erfindet keine
-Daten**. Das ist der Unterschied zwischen „eingeschränkt nutzbar" und
-„Attrappe" — aber es ist auch nicht dasselbe wie „einsatzbereit".
+Ergebnis — belegt durch `tests/integration/departments.test.ts`. Den drei
+verbleibenden fehlt nur die Websuche: Sie nutzen ihre internen Quellen, benennen
+die fehlende Anbindung im Lauf und in der Ausgabe (`unavailableTools`) und
+**erfinden keine Daten**. Kein Agent ist mehr vollständig ohne Datenzugang.
 
 ---
 
@@ -223,9 +256,9 @@ Daten**. Das ist der Unterschied zwischen „eingeschränkt nutzbar" und
 | **Hintergrund-Worker (pg-boss)** | `pg-boss` ist als Abhängigkeit installiert, aber **nirgends verwendet**; `src/server/jobs/` existiert nicht | Läufe starten synchron über Server Actions. **Zeitgesteuerte Läufe und Hintergrund-Retries funktionieren nicht.** Der Feature-Flag „Zeitpläne" ist im Adminbereich als wirkungslos gekennzeichnet |
 | **Automatische Rechnungsstellung** | derselbe fehlende Worker | `issueInvoice()` läuft nur auf Anforderung über die Billing-Seite |
 | **Stripe-Webhook-Route** | benötigt `STRIPE_WEBHOOK_SECRET` und eine öffentlich erreichbare URL | Bei echten Zahlungen würde der Abo-Status nicht automatisch nachgeführt |
-| **14 weitere Connectoren** (Outlook, Microsoft Calendar, Google Drive, OneDrive, Dropbox, Slack, Teams, HubSpot, Salesforce, Pipedrive, Notion, sevdesk, lexoffice, DATEV) | brauchen App-Registrierungen, Verträge und echte Konten zum Testen | Im UI als „Nicht implementiert" gekennzeichnet. Die zugehörigen 10 Runtime-Werkzeuge werfen einen klaren Fehler statt Ergebnisse vorzutäuschen |
-| **Fachmodule für CRM, Tickets, HR, Kontakte** | Die 10 verbleibenden Platzhalter-Werkzeuge (`crm.*`, `tickets.*`, `hr.*`, `contacts.*`, `files.read`, `web.research`) setzen Datenbestände voraus, die es noch nicht gibt: Kontakte, Tickets, Personalstammdaten | Betrifft 28 Agenten. **Wichtig:** außer `web.research` bräuchte keines davon einen externen Anbieter — es wären eigene Tabellen nach dem Muster der bestehenden `deal`-Tabelle. Das ist offene Arbeit, kein Zugangsdatenproblem |
-| **`web.research`** | Braucht eine externe Suchschnittstelle und ausgehenden Netzzugriff | Das einzige der 33 Werkzeuge, das ohne Drittanbieter grundsätzlich nicht umsetzbar ist. Betrifft `lead-research`, `travel-planning`, `research` |
+| **14 weitere Connectoren** (Outlook, Microsoft Calendar, Google Drive, OneDrive, Dropbox, Slack, Teams, HubSpot, Salesforce, Pipedrive, Notion, sevdesk, lexoffice, DATEV) | brauchen App-Registrierungen, Verträge und echte Konten zum Testen | Im UI als „Nicht implementiert" gekennzeichnet. Ein Kunde mit bestehendem HubSpot oder Zendesk arbeitet bis dahin auf den plattformeigenen Beständen (CSV-Import) statt auf seinem Fremdsystem |
+| **`web.research`** | Braucht eine externe Suchschnittstelle und ausgehenden Netzzugriff | Das **einzige** der 33 Katalog-Werkzeuge, das ohne Drittanbieter grundsätzlich nicht umsetzbar ist. Betrifft `lead-research`, `travel-planning`, `research` |
+| **Oberflächen für Tickets, Kontakte, Personal** | Die Tabellen und Werkzeuge existieren, eine eigene Verwaltungsansicht nicht | Daten kommen über CSV-Import, Webhook oder Demo-Seed hinein und über CSV-Export hinaus. Zum Pflegen einzelner Datensätze im Browser fehlen die Ansichten |
 | **Externe Sicherheitsprüfung** | nicht durchgeführt | Wird nirgends behauptet. Das Bedrohungsmodell ist Eigenanalyse |
 | **Verschlüsselung auf Feldebene für Inhalte** | würde die hybride Suche unmöglich machen | Aufgaben-, E-Mail- und Dokumenttexte liegen unverschlüsselt in der Datenbank. Schutz über Zugriffskontrolle und Speicherverschlüsselung auf Infrastrukturebene |
 | **Rate Limiting am Rand** | gehört auf den Reverse Proxy | Anwendungsseitig nicht vorhanden |
@@ -316,12 +349,9 @@ Lastprüfung. Die Bewertung oben ist Eigenanalyse.
    größte einzelne funktionale Zugewinn.
 7. **Stripe-Webhook-Route** ergänzen und den Adapter gegen den Test-Modus
    verifizieren.
-8. **Fachmodule für Tickets, Kontakte und HR-Stammdaten bauen** — nach dem
-   Muster der bestehenden `deal`-Tabelle: Schema, RLS-Migration, RLS-Test,
-   Werkzeuge, schlichte Oberfläche. Damit fallen die Werkzeuge `tickets.*`,
-   `contacts.*`, `hr.*` und `crm.*` — sie schließen die Lücke bei **28 der 57
-   Agenten** und brauchen keinen einzigen externen Vertrag. Der größte
-   Zugewinn an tatsächlich einsatzbereiten Agenten.
+8. **Verwaltungsansichten für Tickets, Kontakte und Personal** — die Tabellen
+   und Werkzeuge stehen, aber einzelne Datensätze lassen sich im Browser nicht
+   pflegen. Heute geht das nur über CSV-Import/-Export und Webhook.
 9. **Gmail- und Google-Calendar-Adapter tatsächlich schreiben** — bislang
    existiert nur der Registry-Eintrag. Die Demo-Connectoren definieren dafür
    das Zielverhalten.

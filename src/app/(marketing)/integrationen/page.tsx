@@ -168,13 +168,22 @@ export default function IntegrationsPage() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>
-                Aufgaben und Deals lassen sich als CSV einlesen — mit Semikolon,
-                Komma oder Tabulator, auch direkt aus Excel. Fehlerhafte Zeilen
-                werden übersprungen und einzeln mit Zeilennummer benannt.
+                Aufgaben, Deals, Kontakte, Tickets und Beschäftigte lassen sich
+                als CSV einlesen — mit Semikolon, Komma oder Tabulator, auch
+                direkt aus Excel. Fehlerhafte Zeilen werden übersprungen und
+                einzeln mit Zeilennummer benannt; Dubletten werden gemeldet,
+                nicht überschrieben.
               </p>
               <p>
                 Exportieren können Sie Aufgaben, Deals und alle Agentenläufe
                 inklusive Kosten.
+              </p>
+              <p>
+                Damit arbeiten die Agenten auf einem echten Datenbestand, auch
+                ohne angebundenes Fremdsystem. Diese Bestände sind bewusst
+                schlank und ersetzen kein gewachsenes CRM, Helpdesk oder
+                HR-System — sie schließen die Lücke, bis der passende Connector
+                steht.
               </p>
             </CardContent>
           </Card>

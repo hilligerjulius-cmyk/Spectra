@@ -196,4 +196,110 @@ describe("Row Level Security — Mandantentrennung", () => {
       /row-level security/i,
     );
   });
+
+  /**
+   * Die Fachdatenbestände aus Migration 0018/0019. Diese Prüfung ist der Grund,
+   * warum die Policies nicht vergessen werden können: `drizzle-kit` erzeugt sie
+   * nicht, und ohne Policy wäre eine neue Tabelle entweder ohne Trennung
+   * zugänglich oder für die App-Rolle gar nicht — beides fällt sonst erst im
+   * Betrieb auf.
+   */
+  it("Fachdaten (Kontakte, Tickets, Personal, Abwesenheiten) sind zwischen Mandanten isoliert", async () => {
+    const { adminDb, withOrg } = await import("@/server/db/client");
+    const { contact, ticket, employee, absence } = await import(
+      "@/server/db/schema"
+    );
+
+    // Je Organisation ein Datensatz, angelegt mit der Owner-Rolle.
+    const contactA = crypto.randomUUID();
+    const employeeA = crypto.randomUUID();
+    await adminDb.insert(contact).values([
+      { id: contactA, organizationId: orgA, fullName: "Kontakt A", email: "a@example.de" },
+      { organizationId: orgB, fullName: "Kontakt B", email: "b@example.de" },
+    ]);
+    await adminDb.insert(ticket).values([
+      { organizationId: orgA, reference: "T-A-1", subject: "Ticket A", body: "Inhalt A" },
+      { organizationId: orgB, reference: "T-B-1", subject: "Ticket B", body: "Inhalt B" },
+    ]);
+    await adminDb.insert(employee).values([
+      { id: employeeA, organizationId: orgA, fullName: "Person A", workEmail: "pa@example.de" },
+      { organizationId: orgB, fullName: "Person B", workEmail: "pb@example.de" },
+    ]);
+    await adminDb.insert(absence).values({
+      organizationId: orgA,
+      employeeId: employeeA,
+      startDate: new Date("2026-08-03"),
+      endDate: new Date("2026-08-14"),
+      workingDays: 10,
+    });
+
+    // Lesen: jede Organisation sieht ausschließlich ihre eigene Zeile.
+    const seen = await withOrg(orgA, async (tx) => ({
+      contacts: await tx.select().from(contact),
+      tickets: await tx.select().from(ticket),
+      employees: await tx.select().from(employee),
+      absences: await tx.select().from(absence),
+    }));
+    expect(seen.contacts).toHaveLength(1);
+    expect(seen.contacts[0]!.fullName).toBe("Kontakt A");
+    expect(seen.tickets).toHaveLength(1);
+    expect(seen.tickets[0]!.reference).toBe("T-A-1");
+    expect(seen.employees).toHaveLength(1);
+    expect(seen.absences).toHaveLength(1);
+
+    // Schreiben für einen fremden Mandanten: von der Datenbank abgelehnt.
+    await expectDbError(
+      withOrg(orgB, (tx) =>
+        tx.insert(contact).values({
+          organizationId: orgA,
+          fullName: "Eingeschmuggelt",
+          email: "schmuggel@example.de",
+        }),
+      ),
+      /row-level security/i,
+    );
+    await expectDbError(
+      withOrg(orgB, (tx) =>
+        tx.insert(ticket).values({
+          organizationId: orgA,
+          reference: "T-FREMD-1",
+          subject: "Fremdes Ticket",
+          body: "Inhalt",
+        }),
+      ),
+      /row-level security/i,
+    );
+    await expectDbError(
+      withOrg(orgB, (tx) =>
+        tx.insert(employee).values({
+          organizationId: orgA,
+          fullName: "Fremde Person",
+          workEmail: "fremd@example.de",
+        }),
+      ),
+      /row-level security/i,
+    );
+    await expectDbError(
+      withOrg(orgB, (tx) =>
+        tx.insert(absence).values({
+          organizationId: orgA,
+          employeeId: employeeA,
+          startDate: new Date("2026-09-01"),
+          endDate: new Date("2026-09-05"),
+          workingDays: 5,
+        }),
+      ),
+      /row-level security/i,
+    );
+
+    // Ein Update über die Mandantengrenze trifft keine Zeile — es wirft keinen
+    // Fehler, aber es verändert auch nichts. Genau das muss gelten.
+    await withOrg(orgB, (tx) =>
+      tx.update(contact).set({ fullName: "Übernommen" }),
+    );
+    const [unveraendert] = await withOrg(orgA, (tx) =>
+      tx.select().from(contact),
+    );
+    expect(unveraendert!.fullName).toBe("Kontakt A");
+  });
 });

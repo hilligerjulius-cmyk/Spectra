@@ -127,8 +127,16 @@ Nur wenn ein Werkzeug fehlt. Es gibt drei Orte, und die Wahl sagt etwas aus:
 | Datei | Für | Beispiele |
 | --- | --- | --- |
 | `runtime/tools.ts` | Kern-Plattformdaten | `tasks.read`, `notify.send` |
-| `runtime/tools-platform.ts` | eigene Tabellen, **keine** externen Zugangsdaten | `reports.generate`, `knowledge.write`, `agents.dispatch` |
+| `runtime/tools-platform.ts` | Plattformfunktionen auf eigenen Tabellen | `reports.generate`, `knowledge.write`, `agents.dispatch` |
+| `runtime/tools-business.ts` | Fachdatenbestände | `tickets.read`, `crm.write`, `hr.read` |
 | `runtime/tools-connectors.ts` | Integrationen | `email.read`, `calendar.write` |
+
+Ein neues **lesendes** Fachwerkzeug gehört zusätzlich in `DOMAIN_READ_TOOLS` in
+`handlers-generic.ts`. Sonst ist es registriert, aber kein Handler ruft es auf —
+der Datenbestand bleibt unbenutzt, ohne dass etwas fehlschlägt.
+
+Ein neues **schreibendes** Werkzeug braucht einen Eintrag in `ACTION_TOOL_MAP`
+(`engine.ts`), damit `prepareAction()` es nach der Freigabe findet.
 
 Ein Werkzeug, das ohne externen Anbieter umsetzbar ist, gehört nach
 `tools-platform.ts` — nicht in die TODO-Liste. Nur was objektiv Zugangsdaten,

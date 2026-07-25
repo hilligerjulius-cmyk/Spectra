@@ -14,6 +14,7 @@ src/
 ├── lib/env.ts              Zod-validierte Umgebungsvariablen
 └── server/
     ├── agents/             Katalog (Daten) + Runtime (Ausführung)
+    ├── demo/               gekennzeichnete Seed-Daten
     ├── ai/                 Provider-Abstraktion, Schemas, Embeddings
     ├── auth/               Better Auth, Rollen, Guards
     ├── billing/            Preislogik, Provider, Pläne

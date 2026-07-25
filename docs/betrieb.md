@@ -67,9 +67,16 @@ Die Person muss vorher ein Konto in der Anwendung haben.
 pnpm db:seed:demo
 ```
 
-Erzeugt eine gekennzeichnete Demo-Organisation. Alle Datensätze tragen die
-Markierung „Demo“ und lassen sich über *Integrations → Demo-Daten entfernen*
-vollständig löschen. Auch über die Oberfläche erzeugbar.
+Erzeugt eine gekennzeichnete Demo-Organisation: E-Mails, Termine, Deals,
+Kontakte, Tickets, Beschäftigte, ein offener Urlaubsantrag und Wissensdokumente.
+Alle Datensätze tragen die Markierung „Demo“ und lassen sich über
+*Integrations → Demo-Daten entfernen* vollständig löschen. Auch über die
+Oberfläche erzeugbar.
+
+Die Fälle sind so gewählt, dass die Agenten etwas zu arbeiten haben: ein
+überfälliges Ticket, ein gesperrter Kontakt, ein noch nicht entschiedener
+Antrag. `tests/integration/demo-seed.test.ts` prüft das — und dass der
+Löschvorgang **restlos** ist.
 
 ## Prüfen
 

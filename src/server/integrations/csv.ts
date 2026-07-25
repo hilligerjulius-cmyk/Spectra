@@ -1,8 +1,16 @@
 import "server-only";
 import { desc } from "drizzle-orm";
 import { withOrg } from "@/server/db/client";
-import { agentRun, deal, task } from "@/server/db/schema";
+import {
+  agentRun,
+  contact,
+  deal,
+  employee,
+  task,
+  ticket,
+} from "@/server/db/schema";
 import { recordAudit } from "@/server/audit";
+import { TARGET_COLUMNS, type ImportTarget } from "@/lib/csv-targets";
 
 /**
  * CSV-Import und -Export.
@@ -120,7 +128,8 @@ export function toCsv(
 /* Import                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export type ImportTarget = "tasks" | "deals";
+export type { ImportTarget };
+export { expectedColumns } from "@/lib/csv-targets";
 
 export interface ImportResult {
   ok: boolean;
@@ -129,22 +138,6 @@ export interface ImportResult {
   /** Zeilennummer (1-basiert, ohne Kopfzeile) und Grund. */
   problems: { row: number; reason: string }[];
   message: string;
-}
-
-const TARGET_COLUMNS: Record<ImportTarget, { required: string[]; optional: string[] }> =
-  {
-    tasks: {
-      required: ["titel"],
-      optional: ["beschreibung", "faellig_am", "prioritaet"],
-    },
-    deals: {
-      required: ["name", "firma", "kontakt_email"],
-      optional: ["wert_eur", "status", "letzte_aktivitaet", "notizen"],
-    },
-  };
-
-export function expectedColumns(target: ImportTarget) {
-  return TARGET_COLUMNS[target];
 }
 
 function normalizeHeader(header: string): string {
@@ -168,6 +161,13 @@ function parseDate(value: string): Date | null {
       )
     : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Erkennt bejahende Werte in Importdateien (ja/yes/wahr/1/x). */
+function isTruthy(value: string): boolean {
+  return ["ja", "yes", "true", "wahr", "1", "x"].includes(
+    value.trim().toLowerCase(),
+  );
 }
 
 function parseAmountCents(value: string): number | null {
@@ -281,6 +281,150 @@ export async function importCsv(params: {
         }),
       );
       imported++;
+    }
+  } else if (params.target === "contacts") {
+    const kinds = ["lead", "kunde", "partner", "lieferant", "sonstige"];
+    for (const [index, row] of normalizedRows.entries()) {
+      const fullName = row.name?.trim();
+      if (!fullName) {
+        problems.push({ row: index + 1, reason: "Spalte 'name' ist leer." });
+        continue;
+      }
+      const email = row.email?.trim() || null;
+      if (email && !email.includes("@")) {
+        problems.push({
+          row: index + 1,
+          reason: `"${email}" ist keine E-Mail-Adresse — Zeile übersprungen.`,
+        });
+        continue;
+      }
+      const kind = kinds.includes(row.art ?? "") ? row.art! : "lead";
+      // Ein Sperrvermerk aus der Quelldatei wird übernommen, aber nie
+      // aufgehoben: Ein fehlender Wert bedeutet nicht "Ansprache erlaubt".
+      const doNotContact = isTruthy(row.keine_ansprache ?? "");
+
+      try {
+        await withOrg(params.organizationId, (tx) =>
+          tx.insert(contact).values({
+            organizationId: params.organizationId,
+            fullName: fullName.slice(0, 200),
+            email,
+            phone: row.telefon?.slice(0, 60) || null,
+            company: row.firma?.slice(0, 200) || null,
+            role: row.position?.slice(0, 120) || null,
+            kind,
+            doNotContact,
+            notes: row.notizen?.slice(0, 4000) || null,
+          }),
+        );
+        imported++;
+      } catch {
+        // Der eindeutige Index auf (organization_id, email) verhindert
+        // Dubletten. Das ist gewollt und keine Fehlfunktion.
+        problems.push({
+          row: index + 1,
+          reason: `Kontakt mit E-Mail "${email}" existiert bereits — nicht überschrieben.`,
+        });
+      }
+    }
+  } else if (params.target === "tickets") {
+    const statuses = [
+      "neu",
+      "in_bearbeitung",
+      "wartet_auf_kunde",
+      "geloest",
+      "geschlossen",
+    ];
+    // Startnummer einmal bestimmen und hochzählen; der eindeutige Index fängt
+    // einen Wettlauf ab, falls parallel importiert wird.
+    const year = new Date().getFullYear();
+    const prefix = `T-${year}-`;
+    const existingRefs = await withOrg(params.organizationId, (tx) =>
+      tx
+        .select({ reference: ticket.reference })
+        .from(ticket)
+        .orderBy(desc(ticket.reference))
+        .limit(1),
+    );
+    let counter = existingRefs[0]?.reference?.startsWith(prefix)
+      ? Number.parseInt(existingRefs[0].reference.slice(prefix.length), 10) || 0
+      : 0;
+
+    for (const [index, row] of normalizedRows.entries()) {
+      const subject = row.betreff?.trim();
+      const body = row.inhalt?.trim();
+      if (!subject || !body) {
+        problems.push({
+          row: index + 1,
+          reason: "Pflichtfeld 'betreff' oder 'inhalt' ist leer.",
+        });
+        continue;
+      }
+      const status = statuses.includes(row.status ?? "") ? row.status! : "neu";
+      if (row.status && status !== row.status) {
+        problems.push({
+          row: index + 1,
+          reason: `Unbekannter Status "${row.status}" — auf "neu" gesetzt.`,
+        });
+      }
+      const priority = ["low", "normal", "high", "urgent"].includes(
+        row.prioritaet ?? "",
+      )
+        ? row.prioritaet!
+        : "normal";
+
+      counter++;
+      await withOrg(params.organizationId, (tx) =>
+        tx.insert(ticket).values({
+          organizationId: params.organizationId,
+          reference: `${prefix}${String(counter).padStart(4, "0")}`,
+          subject: subject.slice(0, 200),
+          body: body.slice(0, 20_000),
+          requesterEmail: row.absender_email?.slice(0, 200) || null,
+          status,
+          priority,
+          category: row.kategorie?.slice(0, 60) || null,
+          assignedTeam: row.team?.slice(0, 80) || null,
+          dueAt: parseDate(row.faellig_am ?? ""),
+        }),
+      );
+      imported++;
+    }
+  } else if (params.target === "employees") {
+    const statuses = ["aktiv", "eintritt_geplant", "beurlaubt", "ausgetreten"];
+    for (const [index, row] of normalizedRows.entries()) {
+      const fullName = row.name?.trim();
+      if (!fullName) {
+        problems.push({ row: index + 1, reason: "Spalte 'name' ist leer." });
+        continue;
+      }
+      const workEmail = row.email?.trim() || null;
+      const status = statuses.includes(row.status ?? "") ? row.status! : "aktiv";
+      const vacationDays = Number.parseInt(row.urlaubstage ?? "", 10);
+
+      try {
+        await withOrg(params.organizationId, (tx) =>
+          tx.insert(employee).values({
+            organizationId: params.organizationId,
+            fullName: fullName.slice(0, 200),
+            workEmail,
+            jobTitle: row.position?.slice(0, 200) || null,
+            department: row.abteilung?.slice(0, 120) || null,
+            status,
+            startDate: parseDate(row.eintritt ?? ""),
+            endDate: parseDate(row.austritt ?? ""),
+            vacationDaysPerYear: Number.isFinite(vacationDays)
+              ? vacationDays
+              : null,
+          }),
+        );
+        imported++;
+      } catch {
+        problems.push({
+          row: index + 1,
+          reason: `Beschäftigte/r mit E-Mail "${workEmail}" existiert bereits — nicht überschrieben.`,
+        });
+      }
     }
   } else {
     const stages = [

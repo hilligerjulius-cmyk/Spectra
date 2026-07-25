@@ -162,6 +162,31 @@ mitgeschrieben — aber es verdoppelt im Extremfall den Verbrauch eines Auslöse
 
 *Belegt durch:* `tests/integration/tools-platform.test.ts`.
 
+### A10 — Agenten mit Zugriff auf Fach- und Personaldaten
+
+*Ziel:* Über einen Agenten an Daten kommen, die er für seine Aufgabe nicht
+braucht — insbesondere Personaldaten — oder Sperrvermerke unterlaufen.
+
+| Maßnahme | Wirkung |
+| --- | --- |
+| Datenminimierung im **Schema**: kein Gehalt, keine Bankverbindung, kein Geburtsdatum, keine Gesundheitsdaten in `employee` | was nicht gespeichert ist, kann nicht abfließen |
+| `hr.read` gibt `absence.note` nicht heraus | ein Krankheitsgrund gelangt nicht in Läufe, Entwürfe oder Protokolle |
+| `hr.write` setzt nur `status: "beantragt"`, nie `decided_at` | ein Agent kann keinen Personalvorgang genehmigen |
+| `contacts.read` blendet gesperrte Kontakte standardmäßig aus | ein Agent, der eine Ansprache vorbereitet, sieht sie gar nicht |
+| `contacts.write` kann eine Sperre setzen, aber **nicht** aufheben | ein Werbewiderspruch wird nicht von der Maschine zurückgenommen |
+| `crm.write` verweigert jede Änderung an gesperrten Vorgängen | keine Reaktivierung über Aktivitätsvermerke |
+| Werkzeuge legen keine Personen und keine Vorgänge an | Stammdaten entstehen durch eine Entscheidung, nicht durch einen Agentenlauf |
+| Werkzeugzugriff braucht Fähigkeitsbedarf **und** Instanz-Freigabe | ein Vertriebsagent erreicht `hr.read` nicht, selbst wenn es implementiert ist |
+
+*Restrisiko:* Wer einer Instanz `hr.read` freigibt, gibt ihr Zugriff auf die
+formalen Personaldaten der ganzen Organisation — eine Einschränkung auf
+einzelne Abteilungen gibt es nicht. Die Freigabe ist eine bewusste Entscheidung
+und steht im Audit-Log.
+
+*Belegt durch:* `tests/integration/tools-business.test.ts` — prüft unter anderem,
+dass ein eingetragener Krankheitsgrund nicht in der Werkzeugausgabe erscheint und
+dass ein Sperrvermerk nicht aufhebbar ist.
+
 ## Bewusst nicht umgesetzt
 
 | Punkt | Grund |

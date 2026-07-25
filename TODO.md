@@ -23,7 +23,7 @@ Credentials" zu führen wäre eine Beschönigung.
 
 | Aufgabe | Grund | Voraussetzung | Dateien | Prio |
 | --- | --- | --- | --- | --- |
-| Fachmodule für Tickets, Kontakte und HR-Stammdaten | Die Werkzeuge `tickets.read/write`, `contacts.read/write`, `hr.read/write`, `crm.read/write` und `files.read` setzen Datenbestände voraus, die es noch nicht gibt. Sie sind deshalb Platzhalter — obwohl kein externer Anbieter nötig wäre. Vorbild ist die bestehende `deal`-Tabelle (CRM-light). Betrifft den Datenzugang von 28 der 57 Agenten | Schema + RLS-Migration + RLS-Test + Werkzeuge + schlichte Oberfläche je Modul | neu: `src/server/db/schema/`, `src/server/agents/runtime/tools-platform.ts` | Hoch |
+| Verwaltungsansichten für Tickets, Kontakte und Personal | Tabellen (`ticket`, `contact`, `employee`, `absence`) und die neun Fachwerkzeuge sind fertig, aber es gibt keine Oberfläche zum Pflegen einzelner Datensätze. Daten kommen heute über CSV-Import, Webhook oder Demo-Seed hinein und über CSV-Export hinaus | — | neu unter `src/app/app/` | Mittel |
 | `web.research` | Braucht eine externe Suchschnittstelle und ausgehenden Netzzugriff — das einzige der 33 Katalog-Werkzeuge, das ohne Drittanbieter grundsätzlich nicht umsetzbar ist. Betrifft `lead-research`, `travel-planning`, `research` | Such-API-Zugang | `src/server/agents/runtime/tools-connectors.ts` | Mittel |
 
 ## Bewusst nicht implementiert (Interface vorhanden, klar gekennzeichnet)

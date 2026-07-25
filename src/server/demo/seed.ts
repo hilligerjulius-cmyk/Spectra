@@ -1,13 +1,17 @@
 import { eq } from "drizzle-orm";
 import { adminDb, withOrg } from "@/server/db/client";
 import {
+  absence,
   agentInstance,
   calendarEvent,
+  contact,
   deal,
   emailMessage,
+  employee,
   integration,
   member,
   organization,
+  ticket,
 } from "@/server/db/schema";
 import { getAgentDefinition } from "@/server/agents/catalog";
 import { ingestDocument } from "@/server/knowledge/service";
@@ -99,6 +103,9 @@ export interface SeedResult {
   emails: number;
   events: number;
   deals: number;
+  contacts: number;
+  tickets: number;
+  employees: number;
   documents: number;
   agents: number;
 }
@@ -241,6 +248,170 @@ export async function seedDemoData(params: {
     if (inserted.length > 0) deals++;
   }
 
+  /*
+   * Kontakte, Tickets und Personalstammdaten.
+   *
+   * Die Datensätze sind so gewählt, dass die zugehörigen Agenten etwas zu
+   * arbeiten haben: ein überfälliges Ticket, ein gesperrter Kontakt, ein
+   * offener Urlaubsantrag. Ohne solche Fälle liefe ein Demo-Lauf ins Leere.
+   */
+  let contacts = 0;
+  for (const c of [
+    {
+      fullName: "[Demo] Sabine Meier",
+      email: "einkauf@meier-bau.de",
+      company: "Meier Bau GmbH",
+      role: "Einkaufsleitung",
+      kind: "kunde",
+      notes: "Fragt regelmäßig nach Wartungspauschalen.",
+    },
+    {
+      fullName: "[Demo] Thomas Bergmann",
+      email: "support-kunde@nordlicht-media.de",
+      company: "Nordlicht Media",
+      role: "IT-Leitung",
+      kind: "kunde",
+    },
+    {
+      fullName: "[Demo] Anna Krüger",
+      email: "anna.krueger@webagentur-krueger.de",
+      company: "Webagentur Krüger",
+      role: "Geschäftsführung",
+      kind: "lead",
+    },
+    {
+      fullName: "[Demo] Einkauf Südwerk (Sperrvermerk)",
+      email: "einkauf@suedwerk.de",
+      company: "Südwerk AG",
+      kind: "kunde",
+      doNotContact: true,
+      notes:
+        "Sperrvermerk: Ansprache ausschließlich über die Rechtsabteilung. Kein Agent darf hier eine Nachricht vorbereiten.",
+    },
+  ]) {
+    const inserted = await withOrg(organizationId, (tx) =>
+      tx
+        .insert(contact)
+        .values({ organizationId, demo: true, ...c })
+        .onConflictDoNothing()
+        .returning({ id: contact.id }),
+    );
+    if (inserted.length > 0) contacts++;
+  }
+
+  let tickets = 0;
+  const year = new Date().getFullYear();
+  for (const [index, t] of [
+    {
+      subject: "[Demo] Portal seit heute früh nicht erreichbar",
+      body: "Unser Kundenportal ist seit 07:30 Uhr nicht erreichbar. Wir haben dringend Kundentermine.",
+      requesterEmail: "support-kunde@nordlicht-media.de",
+      status: "neu",
+      priority: "urgent",
+      // Bewusst in der Vergangenheit: erzeugt einen überfälligen Fall.
+      dueAt: new Date(now - 4 * 60 * 60 * 1000),
+    },
+    {
+      subject: "[Demo] Rechnung R-2291 doppelt abgebucht",
+      body: "Die Rechnung R-2291 vom 3. Juli wurde zweimal belastet. Bitte um Rückerstattung.",
+      requesterEmail: "einkauf@meier-bau.de",
+      status: "in_bearbeitung",
+      priority: "high",
+      category: "abrechnung",
+      assignedTeam: "Buchhaltung",
+      dueAt: new Date(now + 20 * 60 * 60 * 1000),
+      firstResponseAt: new Date(now - 2 * 60 * 60 * 1000),
+    },
+    {
+      subject: "[Demo] Frage zur Schulungsbuchung",
+      body: "Ist die Einführungsschulung im Wartungspaket enthalten?",
+      requesterEmail: "anna.krueger@webagentur-krueger.de",
+      status: "geloest",
+      priority: "normal",
+      category: "vertrieb",
+      assignedTeam: "Vertrieb",
+      firstResponseAt: new Date(now - 3 * 24 * 60 * 60 * 1000),
+      resolvedAt: new Date(now - 2 * 24 * 60 * 60 * 1000),
+      satisfaction: 5,
+    },
+  ].entries()) {
+    const inserted = await withOrg(organizationId, (tx) =>
+      tx
+        .insert(ticket)
+        .values({
+          organizationId,
+          demo: true,
+          reference: `T-${year}-${String(9900 + index).padStart(4, "0")}`,
+          ...t,
+        })
+        .onConflictDoNothing()
+        .returning({ id: ticket.id }),
+    );
+    if (inserted.length > 0) tickets++;
+  }
+
+  let employees = 0;
+  const demoEmployees = [
+    {
+      fullName: "[Demo] Jana Hoffmann",
+      workEmail: "j.hoffmann@demo-dienstleister.de",
+      jobTitle: "Projektleitung",
+      department: "Operations",
+      vacationDaysPerYear: 30,
+      startDate: new Date(now - 900 * 24 * 60 * 60 * 1000),
+    },
+    {
+      fullName: "[Demo] Kemal Yildiz",
+      workEmail: "k.yildiz@demo-dienstleister.de",
+      jobTitle: "Sachbearbeitung Buchhaltung",
+      department: "Finance",
+      vacationDaysPerYear: 28,
+      startDate: new Date(now - 400 * 24 * 60 * 60 * 1000),
+    },
+    {
+      fullName: "[Demo] Neue Kollegin (Eintritt geplant)",
+      workEmail: "neu@demo-dienstleister.de",
+      jobTitle: "Kundenbetreuung",
+      department: "Customer Service",
+      status: "eintritt_geplant",
+      vacationDaysPerYear: 30,
+      startDate: new Date(now + 21 * 24 * 60 * 60 * 1000),
+    },
+  ];
+  for (const e of demoEmployees) {
+    const inserted = await withOrg(organizationId, (tx) =>
+      tx
+        .insert(employee)
+        .values({ organizationId, demo: true, ...e })
+        .onConflictDoNothing()
+        .returning({ id: employee.id }),
+    );
+    if (inserted.length > 0) employees++;
+  }
+
+  // Ein offener Antrag — Status "beantragt", damit die formale Prüfung etwas
+  // zu tun hat und die Entscheidung sichtbar beim Menschen liegt.
+  const [antragsteller] = await withOrg(organizationId, (tx) =>
+    tx
+      .select({ id: employee.id })
+      .from(employee)
+      .where(eq(employee.workEmail, "j.hoffmann@demo-dienstleister.de")),
+  );
+  if (antragsteller) {
+    await withOrg(organizationId, (tx) =>
+      tx.insert(absence).values({
+        organizationId,
+        demo: true,
+        employeeId: antragsteller.id,
+        kind: "urlaub",
+        startDate: new Date(now + 30 * 24 * 60 * 60 * 1000),
+        endDate: new Date(now + 44 * 24 * 60 * 60 * 1000),
+        workingDays: 10,
+        status: "beantragt",
+      }),
+    );
+  }
+
   // Wissensdokumente
   let documents = 0;
   for (const doc of DEMO_KNOWLEDGE) {
@@ -286,10 +457,10 @@ export async function seedDemoData(params: {
     actorId: userId,
     actorLabel: params.userLabel,
     action: "demo.seeded",
-    summary: `Demo-Daten erzeugt: ${emails} E-Mails, ${events} Termine, ${deals} Deals, ${documents} Dokumente, ${agents} Agenten. Alle Datensätze sind als Demo gekennzeichnet.`,
+    summary: `Demo-Daten erzeugt: ${emails} E-Mails, ${events} Termine, ${deals} Deals, ${contacts} Kontakte, ${tickets} Tickets, ${employees} Beschäftigte, ${documents} Dokumente, ${agents} Agenten. Alle Datensätze sind als Demo gekennzeichnet.`,
   });
 
-  return { emails, events, deals, documents, agents };
+  return { emails, events, deals, contacts, tickets, employees, documents, agents };
 }
 
 /** Entfernt alle Demo-Daten einer Organisation. */
@@ -298,6 +469,11 @@ export async function clearDemoData(organizationId: string): Promise<void> {
     await tx.delete(emailMessage).where(eq(emailMessage.demo, true));
     await tx.delete(calendarEvent).where(eq(calendarEvent.demo, true));
     await tx.delete(deal).where(eq(deal.demo, true));
+    await tx.delete(ticket).where(eq(ticket.demo, true));
+    await tx.delete(contact).where(eq(contact.demo, true));
+    // Abwesenheiten zuerst: sie hängen per Fremdschlüssel an den Beschäftigten.
+    await tx.delete(absence).where(eq(absence.demo, true));
+    await tx.delete(employee).where(eq(employee.demo, true));
   });
 }
 

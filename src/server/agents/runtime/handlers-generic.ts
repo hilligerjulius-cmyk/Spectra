@@ -80,6 +80,57 @@ async function noteUnavailableTools(ctx: HandlerContext): Promise<string[]> {
 }
 
 /**
+ * Lädt die Fachdaten, die die Fähigkeit ausdrücklich lesen darf.
+ *
+ * Das ist die Brücke zwischen Werkzeugen und Handlern: Ein Werkzeug allein
+ * bewirkt nichts, wenn kein Handler es aufruft. Statt in jedem Archetyp
+ * einzeln zu entscheiden, welcher Datenbestand relevant ist, werden hier alle
+ * freigegebenen Lesequellen abgefragt und als `<daten>`-Block übergeben.
+ *
+ * Der Block ist ausdrücklich als Daten gekennzeichnet — nie als Anweisung.
+ * Fremde Inhalte (Tickettexte, Notizen) landen darin und dürfen das Verhalten
+ * des Agenten nicht steuern.
+ */
+const DOMAIN_READ_TOOLS: { key: string; label: string; input: unknown }[] = [
+  { key: "tickets.read", label: "Tickets", input: { limit: 15 } },
+  { key: "crm.read", label: "CRM-Vorgänge", input: { limit: 15 } },
+  { key: "contacts.read", label: "Kontakte", input: { limit: 15 } },
+  { key: "deals.read", label: "Vorgänge", input: { limit: 15 } },
+  { key: "hr.read", label: "Personal", input: { limit: 15, includeAbsences: true } },
+  { key: "files.read", label: "Dateien", input: { limit: 15 } },
+];
+
+async function loadDomainContext(
+  ctx: HandlerContext,
+): Promise<{ block: string; sources: string[] } | null> {
+  const parts: string[] = [];
+  const sources: string[] = [];
+
+  for (const source of DOMAIN_READ_TOOLS) {
+    if (!canUse(ctx, source.key)) continue;
+    try {
+      const result = await ctx.invokeTool(source.key, source.input);
+      parts.push(
+        `${source.label}: ${result.summary}\n${JSON.stringify(result.data).slice(0, 4000)}`,
+      );
+      sources.push(source.key);
+    } catch (err) {
+      // Ein einzelner fehlgeschlagener Datenzugriff darf den Lauf nicht
+      // beenden — er wird benannt und der Lauf arbeitet mit dem Rest weiter.
+      await ctx.recordStep("retrieve", `Datenquelle ${source.key} nicht lesbar`, {
+        grund: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (parts.length === 0) return null;
+  await ctx.recordStep("retrieve", `${sources.length} Fachdatenquelle(n) gelesen`, {
+    quellen: sources,
+  });
+  return { block: `<daten>\n${parts.join("\n\n")}\n</daten>`, sources };
+}
+
+/**
  * Holt echte Plattformkennzahlen, wenn die Fähigkeit sie braucht und
  * freigegeben hat. Gibt einen Textblock zurück, der in die Analyse einfließt —
  * damit beruhen Befunde auf tatsächlichen Zahlen und nicht allein auf dem
@@ -118,11 +169,13 @@ const monitorHandler: CapabilityHandler = async (ctx) => {
       hinweis: "Zahlen aus abgeschlossenen Läufen, keine Schätzung.",
     });
   }
+  const domain = await loadDomainContext(ctx);
 
   const analysis = await ctx.ai(
     "generic.analysis",
     [
       metrics ? `<kennzahlen>\n${metrics}\n</kennzahlen>` : null,
+      domain?.block ?? null,
       text.slice(0, MAX_INPUT_CHARS),
     ]
       .filter(Boolean)
@@ -156,6 +209,7 @@ const monitorHandler: CapabilityHandler = async (ctx) => {
       findings: analysis.findings,
       recommendations: analysis.recommendations,
       basedOnPlatformMetrics: metrics !== null,
+      dataSources: domain?.sources ?? [],
     },
   };
 };
@@ -167,9 +221,12 @@ const monitorHandler: CapabilityHandler = async (ctx) => {
 const classifyHandler: CapabilityHandler = async (ctx) => {
   const text = inputText(ctx);
   const missing = await noteUnavailableTools(ctx);
+  const domain = await loadDomainContext(ctx);
   const result = await ctx.ai(
     "generic.classify",
-    text.slice(0, MAX_INPUT_CHARS),
+    [domain?.block ?? null, text.slice(0, MAX_INPUT_CHARS)]
+      .filter(Boolean)
+      .join("\n\n"),
     roleContext(ctx),
   );
 
@@ -194,6 +251,39 @@ const classifyHandler: CapabilityHandler = async (ctx) => {
         "Einordnung war nicht belastbar möglich — der Vorgang wurde zur manuellen Prüfung gemeldet.",
       output: { ...result, escalated: true },
     };
+  }
+
+  /**
+   * Einordnung ins Ticket zurückschreiben. Nur mit ausdrücklich übergebener
+   * Referenz: Aus einem Klassifikationsergebnis lässt sich nicht ableiten,
+   * welches Ticket gemeint war, und ein falsch beschriftetes Ticket landet beim
+   * falschen Team.
+   */
+  let ticketUpdated = false;
+  if (canUse(ctx, "tickets.write")) {
+    const reference = ctx.input.ticketReference ?? ctx.input.reference;
+    if (typeof reference === "string" && reference.trim().length > 1) {
+      await ctx.prepareAction({
+        actionType: "ticket.update",
+        title: `Ticket ${reference} einordnen: ${result.category}`,
+        reasoning: result.rationale,
+        riskLevel: "low",
+        payload: {
+          reference: reference.trim(),
+          category: result.category.slice(0, 60),
+          priority: result.priority,
+          assignedTeam: result.suggestedOwnerRole?.slice(0, 80) ?? null,
+          status: "in_bearbeitung",
+        },
+        affectedData: { ticket: reference, kategorie: result.category },
+      });
+      ticketUpdated = true;
+    } else {
+      await ctx.recordStep("validate", "Kein Ticket zum Aktualisieren benannt", {
+        hinweis:
+          "Die Fähigkeit darf Tickets schreiben, aber es wurde keine ticketReference übergeben. Es wurde keine geraten.",
+      });
+    }
   }
 
   // Eskalation bis zum Anhalten eines Agenten: nur mit ausdrücklich benanntem
@@ -251,11 +341,18 @@ const classifyHandler: CapabilityHandler = async (ctx) => {
   return {
     summary:
       `Eingeordnet als "${result.category}" mit Priorität "${result.priority}" (Konfidenz ${result.confidence}).` +
+      (ticketUpdated ? " Ticket-Einordnung vorgelegt." : "") +
       (pausePrepared ? " Anhalten eines Agenten zur Freigabe vorgelegt." : "") +
       (missing.length > 0
         ? ` Hinweis: ${missing.length} benötigte Anbindung(en) fehlen.`
         : ""),
-    output: { ...result, pausePrepared, unavailableTools: missing },
+    output: {
+      ...result,
+      ticketUpdatePrepared: ticketUpdated,
+      pausePrepared,
+      dataSources: domain?.sources ?? [],
+      unavailableTools: missing,
+    },
   };
 };
 
@@ -266,9 +363,12 @@ const classifyHandler: CapabilityHandler = async (ctx) => {
 const extractHandler: CapabilityHandler = async (ctx) => {
   const text = inputText(ctx);
   const missing = await noteUnavailableTools(ctx);
+  const domain = await loadDomainContext(ctx);
   const result = await ctx.ai(
     "generic.extract",
-    text.slice(0, MAX_INPUT_CHARS),
+    [domain?.block ?? null, text.slice(0, MAX_INPUT_CHARS)]
+      .filter(Boolean)
+      .join("\n\n"),
     roleContext(ctx),
   );
 
@@ -321,6 +421,7 @@ const extractHandler: CapabilityHandler = async (ctx) => {
     output: {
       ...result,
       knowledgeEntryPrepared: persisted,
+      dataSources: domain?.sources ?? [],
       unavailableTools: missing,
     },
   };
@@ -394,11 +495,13 @@ const draftHandler: CapabilityHandler = async (ctx) => {
   const missing = await noteUnavailableTools(ctx);
 
   const pricing = await calculatePricing(ctx);
+  const domain = await loadDomainContext(ctx);
 
   const draft = await ctx.ai(
     "generic.draft",
     [
       pricing ? `<berechnete_positionen>\n${pricing.block}\n</berechnete_positionen>` : null,
+      domain?.block ?? null,
       text.slice(0, MAX_INPUT_CHARS),
     ]
       .filter(Boolean)
@@ -489,6 +592,7 @@ const draftHandler: CapabilityHandler = async (ctx) => {
       pricing: pricing?.data ?? null,
       documentPrepared: asDocument,
       knowledgeEntryPrepared: asKnowledge,
+      dataSources: domain?.sources ?? [],
       unavailableTools: missing,
     },
   };
@@ -507,9 +611,12 @@ const summarizeHandler: CapabilityHandler = async (ctx) => {
     };
   }
   await noteUnavailableTools(ctx);
+  const domain = await loadDomainContext(ctx);
   const result = await ctx.ai(
     "text.summarize",
-    text.slice(0, MAX_INPUT_CHARS),
+    [domain?.block ?? null, text.slice(0, MAX_INPUT_CHARS)]
+      .filter(Boolean)
+      .join("\n\n"),
     roleContext(ctx),
   );
 
@@ -535,6 +642,7 @@ const summarizeHandler: CapabilityHandler = async (ctx) => {
       summary: result.summary,
       keyPoints: result.keyPoints,
       knowledgeEntryPrepared: persisted,
+      dataSources: domain?.sources ?? [],
     },
   };
 };
@@ -702,6 +810,68 @@ const reportHandler: CapabilityHandler = async (ctx) => {
     });
   }
 
+  // Tickets: echte Servicekennzahlen aus dem eigenen Bestand.
+  if (canUse(ctx, "tickets.read")) {
+    const result = await ctx.invokeTool("tickets.read", { limit: 100 });
+    const tickets =
+      (result.data as {
+        status: string;
+        priority: string;
+        overdue: boolean;
+        satisfaction: number | null;
+        firstResponseMinutes: number | null;
+        resolutionMinutes: number | null;
+      }[]) ?? [];
+    const open = tickets.filter(
+      (t) => t.status !== "geloest" && t.status !== "geschlossen",
+    );
+    const rated = tickets.filter((t) => t.satisfaction !== null);
+    const responded = tickets.filter((t) => t.firstResponseMinutes !== null);
+    sections.push({
+      title: "Serviceanfragen",
+      lines: [
+        `${tickets.length} Ticket(s), davon ${open.length} offen und ${tickets.filter((t) => t.overdue).length} überfällig.`,
+        `${open.filter((t) => t.priority === "urgent" || t.priority === "high").length} offene Ticket(s) mit hoher oder höchster Priorität.`,
+        // Mittelwerte nur, wenn es überhaupt Messwerte gibt — sonst bliebe
+        // eine Null stehen, die wie ein Ergebnis aussieht.
+        responded.length > 0
+          ? `Mittlere Zeit bis zur ersten Reaktion: ${Math.round(responded.reduce((s, t) => s + t.firstResponseMinutes!, 0) / responded.length)} Minuten (${responded.length} von ${tickets.length} Tickets).`
+          : "Zeit bis zur ersten Reaktion: nicht ermittelbar, keine Reaktion erfasst.",
+        rated.length > 0
+          ? `Durchschnittliche Bewertung: ${(rated.reduce((s, t) => s + t.satisfaction!, 0) / rated.length).toFixed(1)} von 5 (${rated.length} Bewertung(en)).`
+          : "Kundenzufriedenheit: nicht erhoben.",
+      ],
+    });
+  }
+
+  // CRM: Pipeline aus tatsächlichen Vorgängen.
+  if (canUse(ctx, "crm.read")) {
+    const result = await ctx.invokeTool("crm.read", { limit: 100 });
+    const d = result.data as {
+      deals: { stage: string; valueCents: number | null; daysSinceActivity: number | null }[];
+      totalValueCents: number | null;
+      totalValueNote: string | null;
+    };
+    const byStage = new Map<string, number>();
+    for (const deal of d.deals) {
+      byStage.set(deal.stage, (byStage.get(deal.stage) ?? 0) + 1);
+    }
+    const stale = d.deals.filter(
+      (deal) => deal.daysSinceActivity !== null && deal.daysSinceActivity > 14,
+    );
+    sections.push({
+      title: "Vertriebspipeline",
+      lines: [
+        `${d.deals.length} Vorgang/Vorgänge in der Pipeline.`,
+        ...[...byStage.entries()].map(([stage, n]) => `${stage}: ${n}`),
+        d.totalValueCents !== null
+          ? `Gesamtwert: ${(d.totalValueCents / 100).toFixed(2)} EUR.`
+          : (d.totalValueNote ?? "Gesamtwert nicht ausgewiesen."),
+        `${stale.length} Vorgang/Vorgänge ohne Aktivität seit mehr als 14 Tagen.`,
+      ],
+    });
+  }
+
   if (canUse(ctx, "activity.read")) {
     const result = await ctx.invokeTool("activity.read", { limit: 50 });
     const events =
@@ -789,9 +959,58 @@ const reportHandler: CapabilityHandler = async (ctx) => {
 const checklistHandler: CapabilityHandler = async (ctx) => {
   const text = inputText(ctx);
   await noteUnavailableTools(ctx);
+  const domain = await loadDomainContext(ctx);
+
+  /**
+   * Abwesenheitsanträge formal erfassen. Der Status bleibt „beantragt" — ein
+   * Agent prüft die Form, entscheiden darf nur ein Mensch. Ohne vollständige,
+   * plausible Antragsdaten wird nichts erfasst.
+   */
+  let absenceRecorded = false;
+  if (canUse(ctx, "hr.write")) {
+    const req = ctx.input.absenceRequest;
+    if (req && typeof req === "object") {
+      const r = req as Record<string, unknown>;
+      const complete =
+        typeof r.workEmail === "string" &&
+        typeof r.startDate === "string" &&
+        typeof r.endDate === "string" &&
+        typeof r.workingDays === "number";
+      if (complete) {
+        await ctx.prepareAction({
+          actionType: "absence.record",
+          title: `Abwesenheitsantrag erfassen: ${r.workEmail}`,
+          reasoning:
+            'Formale Erfassung des Antrags. Der Status bleibt "beantragt" — die Entscheidung trifft ein Mensch.',
+          riskLevel: "low",
+          payload: {
+            workEmail: r.workEmail,
+            absence: {
+              kind: typeof r.kind === "string" ? r.kind : "urlaub",
+              startDate: r.startDate,
+              endDate: r.endDate,
+              workingDays: r.workingDays,
+              note: typeof r.note === "string" ? r.note : null,
+            },
+            checkResult: { pruefung: "formal", durchByRun: ctx.runId },
+          },
+          affectedData: { person: r.workEmail, tage: r.workingDays },
+        });
+        absenceRecorded = true;
+      } else {
+        await ctx.recordStep("validate", "Antrag unvollständig — nicht erfasst", {
+          benoetigt: ["workEmail", "startDate", "endDate", "workingDays"],
+          hinweis: "Fehlende Angaben werden nicht ergänzt oder geschätzt.",
+        });
+      }
+    }
+  }
+
   const result = await ctx.ai(
     "tasks.extract",
-    text.slice(0, MAX_INPUT_CHARS),
+    [domain?.block ?? null, text.slice(0, MAX_INPUT_CHARS)]
+      .filter(Boolean)
+      .join("\n\n"),
     roleContext(ctx),
   );
 
@@ -821,8 +1040,13 @@ const checklistHandler: CapabilityHandler = async (ctx) => {
     return {
       summary:
         "Aus den Daten ließen sich keine konkreten Schritte ableiten — es wurden keine erfunden." +
-        (persisted ? " Der Inhalt wurde für die Wissensbasis vorbereitet." : ""),
-      output: { tasks: [], knowledgeEntryPrepared: persisted },
+        (persisted ? " Der Inhalt wurde für die Wissensbasis vorbereitet." : "") +
+        (absenceRecorded ? " Abwesenheitsantrag zur Erfassung vorgelegt." : ""),
+      output: {
+        tasks: [],
+        knowledgeEntryPrepared: persisted,
+        absenceRecordPrepared: absenceRecorded,
+      },
     };
   }
 
@@ -849,8 +1073,14 @@ const checklistHandler: CapabilityHandler = async (ctx) => {
   return {
     summary:
       `${result.tasks.length} Schritt(e) abgeleitet.` +
-      (persisted ? " Wissenseintrag vorbereitet." : ""),
-    output: { tasks: result.tasks, knowledgeEntryPrepared: persisted },
+      (persisted ? " Wissenseintrag vorbereitet." : "") +
+      (absenceRecorded ? " Abwesenheitsantrag zur Erfassung vorgelegt." : ""),
+    output: {
+      tasks: result.tasks,
+      knowledgeEntryPrepared: persisted,
+      absenceRecordPrepared: absenceRecorded,
+      dataSources: domain?.sources ?? [],
+    },
   };
 };
 

@@ -57,7 +57,9 @@ async function main() {
     userLabel: target.userLabel,
   });
   console.log(
-    `Fertig: ${result.emails} E-Mails, ${result.events} Termine, ${result.deals} Deals, ${result.documents} Wissensdokumente, ${result.agents} Agenten (Sandbox-Modus).`,
+    `Fertig: ${result.emails} E-Mails, ${result.events} Termine, ${result.deals} Deals, ` +
+      `${result.contacts} Kontakte, ${result.tickets} Tickets, ${result.employees} Beschäftigte, ` +
+      `${result.documents} Wissensdokumente, ${result.agents} Agenten (Sandbox-Modus).`,
   );
   console.log(
     "Alle Datensätze sind als Demo gekennzeichnet und im UI entsprechend markiert.",

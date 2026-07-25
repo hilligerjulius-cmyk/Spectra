@@ -255,22 +255,38 @@ describe("Sicherheit & Integrität", () => {
   });
 
   it("Tool-Platzhalter: nicht implementierte Integrationen liefern klare Fehler statt Attrappen", async () => {
-    await import("@/server/agents/runtime/tools-init");
-    const { getTool } = await import("@/server/agents/runtime/tools");
+    const { catalogToolKeys } = await import(
+      "@/server/agents/runtime/tools-init"
+    );
+    const { getTool, isToolImplemented } = await import(
+      "@/server/agents/runtime/tools"
+    );
 
-    const placeholder = getTool("crm.write");
-    expect(placeholder).toBeDefined();
-    await expect(
-      placeholder!.execute(
-        {
-          organizationId: orgId,
-          instanceId: "x",
-          runId: "y",
-          sandbox: true,
-          requestedByUserId: null,
-        },
-        {},
-      ),
-    ).rejects.toThrow(/noch nicht verfügbar|nicht implementiert/i);
+    // Bewusst kein festes Werkzeug: Sobald eines implementiert wird, soll dieser
+    // Test auf das nächste noch offene ausweichen, statt fälschlich zu scheitern.
+    const stillPlaceholder = catalogToolKeys.filter((k) => !isToolImplemented(k));
+    if (stillPlaceholder.length === 0) {
+      // Alle Katalog-Werkzeuge sind echt — dann gibt es nichts vorzutäuschen.
+      expect(catalogToolKeys.every((k) => getTool(k) !== undefined)).toBe(true);
+      return;
+    }
+
+    for (const key of stillPlaceholder) {
+      const placeholder = getTool(key);
+      expect(placeholder, `${key} ist nicht registriert`).toBeDefined();
+      await expect(
+        placeholder!.execute(
+          {
+            organizationId: orgId,
+            instanceId: "x",
+            runId: "y",
+            sandbox: true,
+            requestedByUserId: null,
+          },
+          {},
+        ),
+        `${key} muss einen klaren Fehler werfen`,
+      ).rejects.toThrow(/noch nicht verfügbar|nicht implementiert/i);
+    }
   });
 });

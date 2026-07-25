@@ -34,6 +34,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  IMPORT_TARGETS,
+  IMPORT_TARGET_LABELS,
+  TARGET_COLUMNS,
+  type ImportTarget,
+} from "@/lib/csv-targets";
 
 export interface WebhookView {
   url: string;
@@ -42,18 +48,6 @@ export interface WebhookView {
   eventCount: number;
   lastEventAt: string | null;
 }
-
-const IMPORT_COLUMNS: Record<string, { required: string[]; optional: string[] }> =
-  {
-    tasks: {
-      required: ["titel"],
-      optional: ["beschreibung", "faellig_am", "prioritaet"],
-    },
-    deals: {
-      required: ["name", "firma", "kontakt_email"],
-      optional: ["wert_eur", "status", "letzte_aktivitaet", "notizen"],
-    },
-  };
 
 export function DataExchange({
   webhook,
@@ -67,7 +61,8 @@ export function DataExchange({
   const router = useRouter();
   const [pending, setPending] = React.useState<string | null>(null);
   const [freshSecret, setFreshSecret] = React.useState<string | null>(null);
-  const [importTarget, setImportTarget] = React.useState("tasks");
+  const [importTarget, setImportTarget] =
+    React.useState<ImportTarget>("tasks");
   const [exportTarget, setExportTarget] = React.useState("tasks");
   const [problems, setProblems] = React.useState<
     { row: number; reason: string }[]
@@ -104,10 +99,7 @@ export function DataExchange({
     setPending("import");
     setProblems([]);
     const content = await file.text();
-    const result = await importCsvFile(
-      importTarget as "tasks" | "deals",
-      content,
-    );
+    const result = await importCsvFile(importTarget, content);
     setPending(null);
     if (fileInput.current) fileInput.current.value = "";
     setProblems(result.problems ?? []);
@@ -142,7 +134,7 @@ export function DataExchange({
     toast.success(result.message);
   }
 
-  const columns = IMPORT_COLUMNS[importTarget]!;
+  const columns = TARGET_COLUMNS[importTarget];
 
   return (
     <div className="space-y-6">
@@ -291,13 +283,16 @@ X-Workforce-Signature: <hex-digest>
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="importTarget">Ziel</Label>
-              <Select value={importTarget} onValueChange={setImportTarget}>
+              <Select value={importTarget} onValueChange={(v) => setImportTarget(v as ImportTarget)}>
                 <SelectTrigger id="importTarget">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="tasks">Aufgaben</SelectItem>
-                  <SelectItem value="deals">Deals</SelectItem>
+                  {IMPORT_TARGETS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {IMPORT_TARGET_LABELS[t]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

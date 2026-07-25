@@ -76,6 +76,11 @@ export const ACTION_TOOL_MAP: Record<string, string> = {
   "document.create": "documents.write",
   "agent.dispatch": "agents.dispatch",
   "agent.pause": "agents.pause",
+  "ticket.update": "tickets.write",
+  "ticket.create": "tickets.write",
+  "contact.update": "contacts.write",
+  "crm.update": "crm.write",
+  "absence.record": "hr.write",
 };
 
 export interface PreparedAction {

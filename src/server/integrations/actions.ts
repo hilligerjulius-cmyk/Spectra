@@ -116,7 +116,7 @@ export async function enableDemoMode(): Promise<IntegrationActionResult> {
     revalidatePath("/app");
     return {
       ok: true,
-      message: `Demo-Daten erzeugt: ${result.emails} E-Mails, ${result.events} Termine, ${result.deals} Deals, ${result.documents} Dokumente, ${result.agents} Agenten (Sandbox).`,
+      message: `Demo-Daten erzeugt: ${result.emails} E-Mails, ${result.events} Termine, ${result.deals} Deals, ${result.contacts} Kontakte, ${result.tickets} Tickets, ${result.employees} Beschäftigte, ${result.documents} Dokumente, ${result.agents} Agenten (Sandbox).`,
     };
   } catch (err) {
     return failure(err);
@@ -169,13 +169,22 @@ export interface CsvImportActionResult extends IntegrationActionResult {
   problems?: { row: number; reason: string }[];
 }
 
+const IMPORT_TARGETS = [
+  "tasks",
+  "deals",
+  "contacts",
+  "tickets",
+  "employees",
+] as const;
+
 export async function importCsvFile(
-  target: "tasks" | "deals",
+  target: string,
   content: string,
 ): Promise<CsvImportActionResult> {
   try {
     const ctx = await requirePermission("integrations", "manage");
-    if (target !== "tasks" && target !== "deals") {
+    // Der Client sendet nur einen Schlüssel; geprüft wird serverseitig.
+    if (!(IMPORT_TARGETS as readonly string[]).includes(target)) {
       return { ok: false, message: "Unbekanntes Importziel." };
     }
     const { importCsv } = await import("./csv");
@@ -183,7 +192,7 @@ export async function importCsvFile(
       organizationId: ctx.organizationId,
       userId: ctx.userId,
       userLabel: ctx.session.user.name,
-      target,
+      target: target as (typeof IMPORT_TARGETS)[number],
       content,
     });
     if (result.imported > 0) {

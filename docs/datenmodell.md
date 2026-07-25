@@ -1,7 +1,7 @@
 # Datenmodell
 
-33 Tabellen, definiert als Drizzle-Schema unter `src/server/db/schema/`, ausgeliefert
-über 17 SQL-Migrationen unter `src/server/db/migrations/`.
+37 Tabellen, definiert als Drizzle-Schema unter `src/server/db/schema/`, ausgeliefert
+über 20 SQL-Migrationen unter `src/server/db/migrations/`.
 
 ## Drei Zonen mit unterschiedlichem Zugriffsmodell
 
@@ -9,7 +9,7 @@ Die Trennung ist die wichtigste Eigenschaft des Modells:
 
 | Zone | Tabellen | App-Rolle (`workforce_app`) |
 | --- | --- | --- |
-| **Mandantendaten** | 19 Tabellen mit `organization_id` | RLS-Policy auf `current_setting('app.org_id')` |
+| **Mandantendaten** | 23 Tabellen mit `organization_id` | RLS-Policy auf `current_setting('app.org_id')` |
 | **Auth** | `user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`, `two_factor` | keine Rechte — nur `adminDb` |
 | **Plattform** | `platform_admin`, `support_access_log`, `feature_flag` | keine Rechte (Migration `0016`) |
 
@@ -17,11 +17,11 @@ Bei Mandantendaten regelt eine Policy den Zugriff. Bei Auth- und Plattformdaten
 gibt es keinen Zugriff — ein Unterschied, der beabsichtigt ist: eine fehlerhafte
 Policy wäre eine Lücke, ein fehlendes `GRANT` ist keine.
 
-Die 19 Tabellen mit RLS: `agent_instance`, `agent_run`, `agent_step`,
-`approval_request`, `audit_log`, `calendar_event`, `deal`, `email_message`,
-`integration`, `invoice_record`, `knowledge_chunk`, `knowledge_document`,
-`mail_outbox`, `notification`, `notification_preference`, `onboarding_state`,
-`subscription`, `task`, `usage_record`.
+Die 23 Tabellen mit RLS: `absence`, `agent_instance`, `agent_run`, `agent_step`,
+`approval_request`, `audit_log`, `calendar_event`, `contact`, `deal`,
+`email_message`, `employee`, `integration`, `invoice_record`, `knowledge_chunk`,
+`knowledge_document`, `mail_outbox`, `notification`, `notification_preference`,
+`onboarding_state`, `subscription`, `task`, `ticket`, `usage_record`.
 
 Die restlichen drei Tabellen sind global: `plan` und `price_override`
 (Preiskatalog, vom Plattform-Admin gepflegt — `price_override` trägt optional
@@ -126,6 +126,31 @@ ein Abschnitt zitiert oder exportiert wird.
 
 1024 Dimensionen passen zu Voyage `voyage-3` und werden vom lokalen
 Ersatzverfahren ebenfalls erzeugt — der Providerwechsel braucht keine Migration.
+
+## Fachdatenbestände
+
+Vier Tabellen in `schema/business.ts`, damit die Agenten einen echten
+Datenbestand haben, solange kein Fremdsystem angebunden ist. Sie sind
+absichtlich schlank und ersetzen kein gewachsenes CRM, Helpdesk oder HR-System.
+Vorbild ist die ältere `deal`-Tabelle (CRM-light).
+
+| Tabelle | Inhalt | Besonderheit |
+| --- | --- | --- |
+| `contact` | Personen und Firmen | `do_not_contact` als Sperrvermerk; `UNIQUE (organization_id, email)` verhindert Dubletten beim Import |
+| `ticket` | Serviceanfragen | `UNIQUE (organization_id, reference)` sichert die fortlaufende Nummer `T-<jahr>-<lfd>` auch bei parallelen Zugriffen; `first_response_at` und `resolved_at` sind Messgrößen und werden nie überschrieben |
+| `employee` | Beschäftigte | siehe unten |
+| `absence` | Abwesenheitsanträge | `status` bleibt `beantragt`, bis ein **Mensch** entscheidet; `check_result` hält die formale Prüfung eines Agenten getrennt davon |
+
+### Was in `employee` bewusst fehlt
+
+Kein Gehalt, keine Bankverbindung, kein Geburtsdatum, keine Gesundheitsdaten,
+keine Beurteilungen. Keine der abgebildeten Fähigkeiten braucht sie — und was
+nicht gespeichert ist, kann nicht abfließen und nicht versehentlich in einen
+Agentenlauf geraten. Wer Abrechnung braucht, bindet ein Fachsystem an.
+
+Aus demselben Grund gibt `hr.read` das Feld `absence.note` **nicht** heraus: Ein
+Krankheitsgrund hätte in einem Lauf, einem Entwurf oder einem Protokoll nichts
+zu suchen. Die formalen Angaben (Art, Zeitraum, Arbeitstage, Status) reisen mit.
 
 ## Abrechnung
 
