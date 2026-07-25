@@ -72,6 +72,10 @@ export const ACTION_TOOL_MAP: Record<string, string> = {
   "email.draft": "email.draft",
   "email.send": "email.send",
   "calendar.create": "calendar.write",
+  "knowledge.create": "knowledge.write",
+  "document.create": "documents.write",
+  "agent.dispatch": "agents.dispatch",
+  "agent.pause": "agents.pause",
 };
 
 export interface PreparedAction {

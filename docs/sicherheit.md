@@ -113,6 +113,55 @@ Verschlüsselung des Speichers auf Infrastrukturebene.
 | Verbrauch wird auch bei Abbruch und Fehler fortgeschrieben | keine Umgehung durch erzwungene Fehler |
 | Idempotenzschlüssel | derselbe Auslöser läuft nicht doppelt |
 
+### A8 — Vergiftung des gemeinsamen Wissens durch einen Agenten
+
+*Ziel:* Ein Agent schreibt (etwa nach erfolgreicher Prompt Injection) einen
+falschen Inhalt in die Wissensbasis. Ein anderer Agent findet ihn später und
+zitiert ihn als Beleg — die Falschinformation wirkt dadurch belegt.
+
+Dieser Weg entstand erst mit `knowledge.write` und `documents.write`. Ohne
+Gegenmaßnahme wäre er der wirksamste Angriff im System, weil er sich über Läufe
+und Agenten hinweg fortträgt.
+
+| Maßnahme | Wirkung |
+| --- | --- |
+| Spalte `origin` je Dokument (`upload` \| `agent_knowledge` \| `agent_document`) | agentengeschriebener Inhalt ist als solcher erkennbar |
+| `created_by_agent_instance_id` und `created_by_run_id` | der verursachende Agent und Lauf sind eindeutig bestimmbar |
+| Herkunftsvermerk **im Text selbst** | reist mit, wenn ein Abschnitt zitiert oder exportiert wird — die Spalte allein bliebe beim Zitieren zurück |
+| `searchKnowledge()` gibt `origin` mit jedem Treffer zurück | ein lesender Agent kann Upload und Agenteninhalt unterscheiden |
+| Schreiben läuft über `prepareAction()` | die Automatisierungsstufe entscheidet; auf Stufe ≤ 3 sieht ein Mensch den Eintrag vorher |
+| Zugriffsbereich wird **nicht** vom Ausgangsdokument geerbt | eine Zusammenfassung aus einem eingeschränkten Dokument öffnet den Inhalt nicht unbemerkt für die ganze Organisation |
+| Erzeugte Dokumente tragen „[Entwurf]" im Titel und `approved: false` | kein Entwurf sieht wie ein freigegebenes Dokument aus |
+
+*Restrisiko:* Ein Mensch, der eine Freigabe ungelesen erteilt, lässt den Inhalt
+durch. Der Herkunftsvermerk bleibt danach erhalten — der Eintrag ist als
+agentengeschrieben erkennbar und über `created_by_run_id` bis zum verursachenden
+Lauf zurückverfolgbar.
+
+*Belegt durch:* `tests/integration/tools-platform.test.ts` — prüft Spalte,
+Textvermerk und die Weitergabe von `origin` in den Suchtreffern.
+
+### A9 — Agenten, die sich gegenseitig beauftragen
+
+*Ziel:* Über `agents.dispatch` eine Kette auslösen, die Grenzen umgeht — jeder
+Lauf hat sein eigenes Budget, eine Kette hätte also beliebig viel.
+
+| Maßnahme | Wirkung |
+| --- | --- |
+| Ein Lauf mit `trigger.type = "delegation"` darf nicht weiterdelegieren | die Kette endet nach einer Stufe |
+| Keine Selbstbeauftragung | kein Kreis mit einem einzigen Agenten |
+| Ziel muss gebucht **und** aktiv sein | keine Aktivierung über den Umweg der Delegation |
+| Fähigkeit muss dem Ziel gehören und darf nicht abgeschaltet sein | keine fremden Fähigkeiten über Umwege |
+| Der beauftragte Lauf gilt mit **seinen** Rechten und **seiner** Stufe | Delegation gibt keine Berechtigung weiter |
+| Übergabe erzeugt einen Audit-Eintrag `agent.delegated` mit Eltern-Lauf | die Kette ist im Nachhinein rekonstruierbar |
+| `agents.pause` wirkt im Sandbox-Lauf nicht | ein Testlauf kann den Produktivbetrieb nicht anhalten |
+
+*Restrisiko:* Eine Stufe Delegation kostet einen zusätzlichen Lauf und damit
+zusätzliches Budget. Das ist begrenzt und wird über `recordUsage()`
+mitgeschrieben — aber es verdoppelt im Extremfall den Verbrauch eines Auslösers.
+
+*Belegt durch:* `tests/integration/tools-platform.test.ts`.
+
 ## Bewusst nicht umgesetzt
 
 | Punkt | Grund |

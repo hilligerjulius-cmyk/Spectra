@@ -70,9 +70,12 @@ export function chunkText(text: string): string[] {
   return chunks.filter((c) => c.length > 20);
 }
 
+export type DocumentOrigin = "upload" | "agent_knowledge" | "agent_document";
+
 export interface UploadDocumentParams {
   organizationId: string;
-  userId: string;
+  /** null, wenn ein Agent den Inhalt erzeugt hat (kein Mensch als Urheber). */
+  userId: string | null;
   userLabel: string;
   filename: string;
   mimeType: string;
@@ -80,6 +83,13 @@ export interface UploadDocumentParams {
   title?: string;
   accessScope?: "organization" | "restricted";
   allowedRoles?: string[];
+  /**
+   * Herkunft. Muss gesetzt werden, wenn ein Agent schreibt — sonst wäre der
+   * Inhalt später nicht von einem hochgeladenen Dokument zu unterscheiden.
+   */
+  origin?: DocumentOrigin;
+  agentInstanceId?: string | null;
+  runId?: string | null;
 }
 
 export async function ingestDocument(
@@ -100,6 +110,9 @@ export async function ingestDocument(
         allowedRoles: params.allowedRoles ?? [],
         uploadedByUserId: params.userId,
         embeddingProvider: provider.name,
+        origin: params.origin ?? "upload",
+        createdByAgentInstanceId: params.agentInstanceId ?? null,
+        createdByRunId: params.runId ?? null,
       })
       .returning({ id: knowledgeDocument.id }),
   );
@@ -127,10 +140,11 @@ export async function ingestDocument(
         .set({ status: "ready", chunkCount: chunks.length })
         .where(eq(knowledgeDocument.id, documentId));
     });
+    const byAgent = (params.origin ?? "upload") !== "upload";
     await recordAudit({
       organizationId: params.organizationId,
-      actorType: "user",
-      actorId: params.userId,
+      actorType: byAgent ? "agent" : "user",
+      actorId: byAgent ? (params.agentInstanceId ?? null) : params.userId,
       actorLabel: params.userLabel,
       action: "knowledge.document.ingested",
       targetType: "knowledge_document",
@@ -156,6 +170,12 @@ export interface SearchResult {
   documentTitle: string;
   content: string;
   score: number;
+  /**
+   * Herkunft des Belegs. Ein Agent, der eine Antwort belegt, muss unterscheiden
+   * können, ob die Fundstelle aus einem hochgeladenen Dokument stammt oder von
+   * einem anderen Agenten geschrieben wurde.
+   */
+  origin: DocumentOrigin;
 }
 
 /**
@@ -204,6 +224,7 @@ export async function searchKnowledge(params: {
           c.id AS chunk_id,
           c.document_id,
           d.title AS document_title,
+          d.origin AS origin,
           c.content,
           (1 - (c.embedding <=> ${vectorLiteral}::vector)) AS vector_score,
           ts_rank(
@@ -236,6 +257,7 @@ export async function searchKnowledge(params: {
     documentTitle: String(r.document_title),
     content: String(r.content),
     score: Number(r.hybrid_score ?? 0),
+    origin: String(r.origin ?? "upload") as DocumentOrigin,
   }));
 }
 

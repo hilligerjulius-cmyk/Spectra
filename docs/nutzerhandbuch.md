@@ -114,6 +114,14 @@ statt: ein Agent, der ein Dokument nicht sehen darf, erhält es nicht als Treffe
 Antworten aus dem Wissenssystem nennen ihre Quellen. Findet ein Agent keinen
 Beleg, sagt er das, statt zu formulieren, was plausibel klingt.
 
+**Von Agenten geschriebenes Wissen** ist gekennzeichnet — in der Übersicht und
+im Text des Eintrags selbst („Von einem digitalen Mitarbeiter erzeugt. Inhalt
+nicht menschlich geprüft."). Das ist wichtig: ein Agent, der eine Antwort
+belegt, kann sonst einen von einem anderen Agenten geschriebenen Text wie einen
+hochgeladenen Vertrag zitieren. Erzeugte Dokumente tragen zusätzlich „[Entwurf]"
+im Titel. Zu jedem solchen Eintrag ist nachvollziehbar, welcher Agent ihn in
+welchem Lauf angelegt hat.
+
 ## Aktivität und Protokoll
 
 Jeder Lauf ist einzeln nachvollziehbar: Auslöser, Ziel, jeder Schritt mit

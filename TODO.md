@@ -15,6 +15,17 @@ APIs benötigen — oder bewusst zurückgestellte Arbeiten. Format:
 | Gmail-/Google-Calendar-OAuth aktivieren | OAuth-Client-Credentials fehlen; Demo-Connectoren übernehmen bis dahin | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `src/server/integrations/*` | Hoch |
 | Echten SMTP-Versand aktivieren | Ohne SMTP werden Mails in der Outbox gespeichert und nicht versendet | `SMTP_URL` | `src/server/mail/index.ts` | Mittel |
 
+## Offene Eigenleistung (braucht KEINE externen Zugangsdaten)
+
+Dieser Abschnitt steht bewusst getrennt: Diese Punkte sind nicht durch
+Zugangsdaten blockiert, sondern noch nicht gebaut. Sie als „braucht
+Credentials" zu führen wäre eine Beschönigung.
+
+| Aufgabe | Grund | Voraussetzung | Dateien | Prio |
+| --- | --- | --- | --- | --- |
+| Fachmodule für Tickets, Kontakte und HR-Stammdaten | Die Werkzeuge `tickets.read/write`, `contacts.read/write`, `hr.read/write`, `crm.read/write` und `files.read` setzen Datenbestände voraus, die es noch nicht gibt. Sie sind deshalb Platzhalter — obwohl kein externer Anbieter nötig wäre. Vorbild ist die bestehende `deal`-Tabelle (CRM-light). Betrifft den Datenzugang von 28 der 57 Agenten | Schema + RLS-Migration + RLS-Test + Werkzeuge + schlichte Oberfläche je Modul | neu: `src/server/db/schema/`, `src/server/agents/runtime/tools-platform.ts` | Hoch |
+| `web.research` | Braucht eine externe Suchschnittstelle und ausgehenden Netzzugriff — das einzige der 33 Katalog-Werkzeuge, das ohne Drittanbieter grundsätzlich nicht umsetzbar ist. Betrifft `lead-research`, `travel-planning`, `research` | Such-API-Zugang | `src/server/agents/runtime/tools-connectors.ts` | Mittel |
+
 ## Bewusst nicht implementiert (Interface vorhanden, klar gekennzeichnet)
 
 | Aufgabe | Grund | Voraussetzung | Dateien | Prio |

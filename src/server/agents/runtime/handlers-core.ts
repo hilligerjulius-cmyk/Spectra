@@ -1,5 +1,20 @@
 import { registerHandler } from "./handlers";
+import { isToolImplemented } from "./tools";
 import type { CapabilityHandler, HandlerContext } from "./engine";
+
+/**
+ * Ein Werkzeug ist nutzbar, wenn die Fähigkeit es braucht, die Instanz es
+ * freigegeben hat und es echt implementiert ist. Gleiche Regel wie in den
+ * Archetyp-Handlern — hier nötig, weil auch vertiefte Handler optionale
+ * Werkzeuge verwenden, die eine Instanz entzogen haben kann.
+ */
+function canUse(ctx: HandlerContext, toolKey: string): boolean {
+  return (
+    ctx.capability.requiredTools.includes(toolKey) &&
+    ctx.instance.allowedTools.includes(toolKey) &&
+    isToolImplemented(toolKey)
+  );
+}
 
 /**
  * Vertiefte Capability-Handler (Phase 5/6).
@@ -640,15 +655,46 @@ const dailyBriefingHandler: CapabilityHandler = async (ctx) => {
     (t) => t.priority === "urgent" || t.priority === "high",
   );
   const failedRuns = activity.filter((a) => a.action.includes("failed"));
-  const pendingApprovalRuns = activity.filter((a) =>
-    a.action.includes("waiting_approval"),
-  );
+
+  /**
+   * Offene Freigaben werden direkt gelesen, nicht aus dem Aktivitätsprotokoll
+   * erschlossen. Der frühere Weg — nach "waiting_approval" im Protokoll zu
+   * suchen — zählte Läufe, nicht Freigaben, und übersah alles, was älter war
+   * als die letzten 20 Ereignisse.
+   */
+  let approvals: {
+    count: number;
+    bulkEligible: number;
+    highRisk: number;
+    oldestMinutes: number | null;
+    titles: string[];
+  } | null = null;
+  if (canUse(ctx, "approvals.read")) {
+    const result = await ctx.invokeTool("approvals.read", {
+      status: ["pending"],
+      limit: 100,
+    });
+    const d = result.data as {
+      byRisk: Record<string, number>;
+      bulkEligible: number;
+      items: { title: string; riskLevel: string; ageMinutes: number }[];
+    };
+    approvals = {
+      count: d.items.length,
+      bulkEligible: d.bulkEligible,
+      highRisk: d.byRisk.high ?? 0,
+      oldestMinutes:
+        d.items.length > 0 ? Math.max(...d.items.map((i) => i.ageMinutes)) : null,
+      titles: d.items.slice(0, 5).map((i) => `${i.title} (${i.riskLevel})`),
+    };
+  }
 
   await ctx.recordStep("reason", "Lage bewertet", {
     offene_aufgaben: openTasks.length,
     ueberfaellig: overdue.length,
     faellig_bald: dueSoon.length,
     fehlgeschlagene_laeufe: failedRuns.length,
+    offene_freigaben: approvals?.count ?? "nicht abgefragt",
   });
 
   const briefing = [
@@ -673,11 +719,26 @@ const dailyBriefingHandler: CapabilityHandler = async (ctx) => {
       : ["- Keine Fälligkeiten in den nächsten 3 Tagen."]),
     "",
     "## Offene Freigaben",
-    pendingApprovalRuns.length > 0
-      ? `- ${pendingApprovalRuns.length} Lauf/Läufe warten auf Ihre Entscheidung (siehe Approval Center).`
-      : "- Keine offenen Freigaben aus den letzten Läufen.",
+    ...(approvals === null
+      ? ["- Freigaben konnten nicht abgefragt werden (Werkzeug nicht freigegeben)."]
+      : approvals.count === 0
+        ? ["- Keine offenen Freigaben."]
+        : [
+            `- ${approvals.count} Freigabe(n) offen, davon ${approvals.highRisk} mit hohem Risiko.`,
+            ...(approvals.bulkEligible > 1
+              ? [
+                  `- ${approvals.bulkEligible} davon risikoarm und für eine Sammelfreigabe geeignet.`,
+                ]
+              : []),
+            ...(approvals.oldestMinutes !== null && approvals.oldestMinutes > 1440
+              ? [
+                  `- Älteste offene Freigabe wartet seit ${Math.floor(approvals.oldestMinutes / 1440)} Tag(en).`,
+                ]
+              : []),
+            ...approvals.titles.map((t) => `  - ${t}`),
+          ]),
     "",
-    `_Grundlage: ${openTasks.length} offene Aufgaben und ${activity.length} protokollierte Ereignisse. Es werden ausschließlich vorhandene Daten ausgewertet._`,
+    `_Grundlage: ${openTasks.length} offene Aufgaben, ${activity.length} protokollierte Ereignisse${approvals !== null ? ` und ${approvals.count} offene Freigabe(n)` : ""}. Es werden ausschließlich vorhandene Daten ausgewertet._`,
   ].join("\n");
 
   const outcome = await ctx.prepareAction({
@@ -696,8 +757,13 @@ const dailyBriefingHandler: CapabilityHandler = async (ctx) => {
   });
 
   return {
-    summary: `Tagesbriefing erstellt: ${openTasks.length} offene Aufgaben, ${overdue.length} überfällig, ${urgent.length} hoch priorisiert${outcome.mode === "approval_requested" ? " — wartet auf Freigabe" : ""}.`,
-    output: { briefing, overdue: overdue.length, urgent: urgent.length },
+    summary: `Tagesbriefing erstellt: ${openTasks.length} offene Aufgaben, ${overdue.length} überfällig, ${urgent.length} hoch priorisiert${approvals !== null ? `, ${approvals.count} Freigabe(n) offen` : ""}${outcome.mode === "approval_requested" ? " — wartet auf Freigabe" : ""}.`,
+    output: {
+      briefing,
+      overdue: overdue.length,
+      urgent: urgent.length,
+      pendingApprovals: approvals?.count ?? null,
+    },
   };
 };
 
@@ -830,3 +896,188 @@ const prioritizeHandler: CapabilityHandler = async (ctx) => {
 };
 
 registerHandler("chief-of-staff:prioritize", prioritizeHandler);
+
+/* ========================================================================== */
+/* Chief of Staff — Delegation an den fachlich zuständigen Agenten            */
+/* ========================================================================== */
+
+/**
+ * Ordnet offene Aufgaben dem passenden Department zu. Bewusst regelbasiert und
+ * nicht durch das Modell: Welcher Agent beauftragt wird, ist eine
+ * Zuständigkeitsentscheidung, keine Textaufgabe.
+ *
+ * Die Schlüsselwörter sind das Sichtbare der Zuordnung — was nicht zutrifft,
+ * wird nicht geraten, sondern bleibt beim Menschen.
+ */
+const DEPARTMENT_KEYWORDS: { department: string; words: string[] }[] = [
+  {
+    department: "finance",
+    words: ["rechnung", "beleg", "zahlung", "mahnung", "spesen", "budget", "buchhaltung", "kosten", "liquidität"],
+  },
+  {
+    department: "sales",
+    words: ["angebot", "lead", "kunde gewinnen", "abschluss", "pipeline", "follow-up", "akquise", "deal"],
+  },
+  {
+    department: "hr",
+    words: ["bewerb", "urlaub", "onboarding", "mitarbeiter", "personal", "einarbeitung", "austritt", "schulung"],
+  },
+  {
+    department: "customer-service",
+    words: ["reklamation", "beschwerde", "ticket", "support", "bewertung", "kundenanfrage"],
+  },
+  {
+    department: "office",
+    words: ["termin", "kalender", "e-mail", "email", "posteingang", "protokoll", "reise", "erinnerung"],
+  },
+  {
+    department: "knowledge",
+    words: ["dokumentation", "wissen", "recherche", "handbuch", "sop", "ablage"],
+  },
+  {
+    department: "operations",
+    words: ["prozess", "frist", "auslastung", "lieferant", "projekt", "engpass", "durchlauf"],
+  },
+];
+
+function matchDepartment(text: string): string | null {
+  const lower = text.toLowerCase();
+  let best: { department: string; hits: number } | null = null;
+  for (const entry of DEPARTMENT_KEYWORDS) {
+    const hits = entry.words.filter((w) => lower.includes(w)).length;
+    if (hits > 0 && (best === null || hits > best.hits)) {
+      best = { department: entry.department, hits };
+    }
+  }
+  return best?.department ?? null;
+}
+
+const delegateHandler: CapabilityHandler = async (ctx) => {
+  const tasksResult = await ctx.invokeTool("tasks.read", {
+    status: ["open"],
+    limit: 30,
+  });
+  const openTasks =
+    (tasksResult.data as {
+      id: string;
+      title: string;
+      priority: string;
+      dueAt: string | null;
+    }[]) ?? [];
+
+  if (openTasks.length === 0) {
+    return { summary: "Keine offenen Aufgaben — nichts zu delegieren." };
+  }
+
+  if (!canUse(ctx, "agents.dispatch")) {
+    await ctx.recordStep("validate", "Delegation nicht möglich", {
+      grund:
+        "Das Werkzeug agents.dispatch ist nicht freigegeben. Es wurde kein Agent beauftragt.",
+    });
+    return {
+      summary: `${openTasks.length} offene Aufgabe(n) gefunden, aber Delegation ist nicht freigegeben.`,
+      output: { delegated: 0, openTasks: openTasks.length },
+    };
+  }
+
+  // Welche Agenten stehen überhaupt bereit? Delegiert wird nur an gebuchte,
+  // aktive Agenten — nicht an Katalogeinträge.
+  const { withOrg } = await import("@/server/db/client");
+  const { agentInstance } = await import("@/server/db/schema");
+  const { getAgentDefinition } = await import("@/server/agents/catalog");
+  const { eq } = await import("drizzle-orm");
+
+  const instances = await withOrg(ctx.organizationId, (tx) =>
+    tx
+      .select()
+      .from(agentInstance)
+      .where(eq(agentInstance.status, ctx.sandbox ? "sandbox" : "active")),
+  );
+
+  const candidates = instances
+    .filter((i) => i.definitionSlug !== ctx.instance.definitionSlug)
+    .map((i) => ({ instance: i, def: getAgentDefinition(i.definitionSlug) }))
+    .filter((c): c is { instance: typeof c.instance; def: NonNullable<typeof c.def> } =>
+      c.def !== undefined,
+    );
+
+  await ctx.recordStep("retrieve", "Verfügbare Agenten ermittelt", {
+    kandidaten: candidates.length,
+    hinweis: "Nur gebuchte und betriebsbereite Agenten kommen in Frage.",
+  });
+
+  const assignments: {
+    task: string;
+    department: string;
+    targetSlug: string;
+    capabilityKey: string;
+  }[] = [];
+  const unassigned: string[] = [];
+
+  for (const t of openTasks.slice(0, 10)) {
+    const department = matchDepartment(t.title);
+    if (!department) {
+      unassigned.push(t.title);
+      continue;
+    }
+    // Der erste Agent des Departments, dessen Fähigkeit Text verarbeiten kann.
+    const match = candidates.find((c) => c.def.department === department);
+    if (!match) {
+      unassigned.push(t.title);
+      continue;
+    }
+    const capability = match.def.capabilities.find(
+      (c) => !match.instance.disabledCapabilities.includes(c.key),
+    );
+    if (!capability) {
+      unassigned.push(t.title);
+      continue;
+    }
+    assignments.push({
+      task: t.title,
+      department,
+      targetSlug: match.def.slug,
+      capabilityKey: capability.key,
+    });
+  }
+
+  if (unassigned.length > 0) {
+    await ctx.recordStep("validate", `${unassigned.length} Aufgabe(n) ohne Zuordnung`, {
+      aufgaben: unassigned.slice(0, 5),
+      hinweis:
+        "Keine fachliche Zuständigkeit erkennbar oder kein passender Agent aktiv. Diese Aufgaben bleiben beim Menschen.",
+    });
+  }
+
+  let prepared = 0;
+  for (const a of assignments.slice(0, 5)) {
+    const outcome = await ctx.prepareAction({
+      actionType: "agent.dispatch",
+      title: `Delegieren an ${a.targetSlug}: ${a.task}`,
+      reasoning: `Die Aufgabe wurde dem Department "${a.department}" zugeordnet. Der beauftragte Agent läuft mit seinen eigenen Rechten und seiner eigenen Automatisierungsstufe.`,
+      riskLevel: "medium",
+      payload: {
+        targetSlug: a.targetSlug,
+        capabilityKey: a.capabilityKey,
+        goal: `Delegiert vom Chief of Staff: ${a.task}`.slice(0, 300),
+        input: { text: a.task },
+      },
+      affectedData: { department: a.department, aufgabe: a.task },
+    });
+    if (outcome.mode !== "drafted") prepared++;
+  }
+
+  return {
+    summary:
+      assignments.length > 0
+        ? `${assignments.length} Aufgabe(n) zugeordnet, ${prepared} Delegation(en) vorgelegt${unassigned.length > 0 ? `, ${unassigned.length} ohne Zuständigkeit` : ""}.`
+        : `Keine der ${openTasks.length} offenen Aufgaben ließ sich einem aktiven Agenten zuordnen — es wurde nichts geraten.`,
+    output: {
+      assignments,
+      unassigned,
+      availableAgents: candidates.length,
+    },
+  };
+};
+
+registerHandler("chief-of-staff:delegate", delegateHandler);

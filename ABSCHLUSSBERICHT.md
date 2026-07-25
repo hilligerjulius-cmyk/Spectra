@@ -11,15 +11,16 @@ ungetestet ist, steht das hier — nicht in einer Fußnote.
 
 | | |
 | --- | --- |
-| Quelldateien (`src/`) | 210 (TypeScript/TSX), ca. 33.100 Zeilen |
+| Quelldateien (`src/`) | 211 (TypeScript/TSX), ca. 34.400 Zeilen |
 | Datenbanktabellen | 33, davon 19 mandantenbezogen mit RLS-Policy |
-| SQL-Migrationen | 17 |
+| SQL-Migrationen | 18 |
 | Agenten im Katalog | 57 über 8 Departments (7 Fachbereiche + Chief of Staff) |
 | Fähigkeiten | 126 (Risiko: 88 niedrig, 27 mittel, 11 hoch) |
-| Runtime-Werkzeuge | 33 vom Katalog referenziert, **16 echt implementiert**, 17 Platzhalter mit klarer Fehlermeldung |
+| Runtime-Werkzeuge | 33 vom Katalog referenziert, **23 echt implementiert**, 10 Platzhalter mit klarer Fehlermeldung |
+| Agenten mit vollem Datenzugang | **29 von 57** (25 teilweise, 3 ohne eigenen Zugang) |
 | Seiten | 19 Marketing, 18 App, 5 Admin, 3 API-Routen |
 | UI-Komponenten | 42 |
-| Tests | **136 Vitest** (20 Dateien) + **31 Playwright** = 167 |
+| Tests | **156 Vitest** (21 Dateien) + **31 Playwright** = 187 |
 
 ---
 
@@ -28,9 +29,9 @@ ungetestet ist, steht das hier — nicht in einer Fußnote.
 ```
 pnpm lint       → keine Meldungen
 pnpm typecheck  → keine Fehler
-pnpm test       → Test Files 20 passed (20) | Tests 136 passed (136)  [8,29 s]
+pnpm test       → Test Files 21 passed (21) | Tests 156 passed (156)  [8,70 s]
 pnpm build      → erfolgreich, 54 Routen
-pnpm e2e        → 31 passed (12,6 s)
+pnpm e2e        → 31 passed (13,6 s)
 ```
 
 Die Vitest-Suite läuft gegen eine echte PostgreSQL-16-Datenbank
@@ -42,6 +43,7 @@ Die Vitest-Suite läuft gegen eine echte PostgreSQL-16-Datenbank
 | Datei | Tests | Gegenstand |
 | --- | --- | --- |
 | `tests/rls/tenant-isolation.test.ts` | 8 | Mandantentrennung gegen die echte DB |
+| `tests/integration/tools-platform.test.ts` | 20 | Selbstbegrenzungen der Plattform-Werkzeuge: keine Delegationsrekursion, keine Selbstbeauftragung, kein Anhalten im Sandbox-Lauf, keine geschätzten Beträge, Herkunft agentengeschriebener Inhalte |
 | `tests/integration/scenarios.test.ts` | 5 | **die 5 Pflichtszenarien aus §27** |
 | `tests/integration/webhook.test.ts` | 11 | Signatur, Replay-Fenster, Nutzlastgrenzen |
 | `tests/integration/notifications.test.ts` | 10 | Typen, Präferenzen, Digest, Zeitvalidierung |
@@ -164,6 +166,31 @@ Pflichtfeld, die zur Prüfaufgabe führt statt zu Zahlung oder Buchung.
   Schätzung: eingesparte Zeit über einen festen Minutenwert je Lauf — überall
   als Schätzung gekennzeichnet
 
+**Plattforminterne Werkzeuge**
+
+Sieben Werkzeuge, die keine externen Zugangsdaten brauchen und ausschließlich
+auf eigenen Tabellen arbeiten:
+
+| Werkzeug | Was es tut | Selbstbegrenzung |
+| --- | --- | --- |
+| `reports.generate` | Kennzahlen aus abgeschlossenen Läufen | Schätzcharakter der Zeitersparnis reist mit; Kosten von 0 werden als „kein echter Anbieter" gekennzeichnet |
+| `knowledge.write` | Wissenseintrag anlegen | Herkunft `agent_knowledge` in der Datenbank **und** als Vermerk im Text; eingeschränkter Zugriff ohne berechtigte Rolle wird abgelehnt |
+| `documents.write` | Dokument erzeugen | Titel und Zusammenfassung nennen es „Entwurf"; `approved: false` |
+| `approvals.read` | Offene Freigaben lesen | Gibt die Nutzlast **nicht** heraus — sie kann fremde Inhalte enthalten, die ein lesender Agent als Anweisung missverstehen könnte |
+| `agents.dispatch` | Arbeit an einen anderen Agenten übergeben | Keine Rekursion (ein delegierter Lauf delegiert nicht weiter), keine Selbstbeauftragung, nur aktive Agenten, nur eigene Fähigkeiten; der beauftragte Lauf gilt mit **seinen** Rechten und **seiner** Stufe |
+| `agents.pause` | Einen Agenten anhalten | Mittleres Risiko → menschliche Freigabe; im Sandbox-Lauf wird nichts verändert; Begründung ab 10 Zeichen; idempotent |
+| `pricing.calculate` | Positionen rechnen | Reine Arithmetik ohne Modell. Nicht-numerische Angaben werden abgelehnt, statt einen plausiblen Betrag zu erzeugen; der Steuersatz gilt als übernommen, nicht als geprüft |
+
+Zwei Wirkungen davon sind erwähnenswert:
+
+- Das Tagesbriefing des Chief of Staff liest offene Freigaben jetzt **direkt**.
+  Vorher schloss es sie aus dem Aktivitätsprotokoll — das zählte Läufe statt
+  Freigaben und übersah alles außerhalb der letzten 20 Ereignisse.
+- Der Chief of Staff hat einen echten Delegations-Handler: Aufgaben werden
+  regelbasiert einem Department zugeordnet und an gebuchte, aktive Agenten
+  vorgelegt. Was sich nicht zuordnen lässt, bleibt beim Menschen und wird
+  namentlich benannt — es wird kein Agent geraten.
+
 ---
 
 ## 4. Teilweise implementiert
@@ -175,7 +202,17 @@ Pflichtfeld, die zur Prüfaufgabe führt statt zu Zahlung oder Buchung.
 | **Voyage-Embeddings** | `VoyageEmbeddingProvider` implementiert, 1024 Dimensionen | Nicht gegen die echte API getestet. Der lokale Ersatz kennt **keine Semantik**, nur Wortform-Ähnlichkeit über Wort-Hashes und Zeichen-Trigramme |
 | **Gmail / Google Calendar** | Als Connector registriert, Status „Zugangsdaten erforderlich", im UI so gekennzeichnet | **Der OAuth-Flow und die Adapter-Implementierung fehlen.** Es existiert bislang nur der Registry-Eintrag, nicht der Code, der Gmail tatsächlich abfragt |
 | **SMTP** | Adapter vorhanden; ohne `SMTP_URL` landen Mails in einer einsehbaren Outbox-Tabelle | Nicht gegen einen echten Server getestet |
-| **Vertiefung der Agenten** | Alle 126 Fähigkeiten laufen real und sind einzeln getestet | 12 Handler über 7 Agenten sind fachlich vertieft. Die übrigen laufen über 8 Archetyp-Handler: echte Arbeit, aber geringere fachliche Tiefe. Das ist eine bewusste Entscheidung (ADR-008), kein Versehen |
+| **Vertiefung der Agenten** | Alle 126 Fähigkeiten laufen real und sind einzeln getestet | 13 Handler über 7 Agenten sind fachlich vertieft. Die übrigen laufen über 8 Archetyp-Handler: echte Arbeit, aber geringere fachliche Tiefe. Das ist eine bewusste Entscheidung (ADR-008), kein Versehen |
+| **Datenzugang der Agenten** | 29 der 57 Agenten haben alle benötigten Werkzeuge echt angebunden | 25 arbeiten mit eingeschränktem Zugriff und benennen die Lücke im Lauf; 3 (`lead-research`, `ticket-routing`, `complaint`) verarbeiten nur, was ihnen übergeben wird, und haben keinen eigenen Datenzugang |
+
+### Was „läuft" für die 28 nicht voll angebundenen Agenten bedeutet
+
+Alle 57 Agenten führen jede ihrer Fähigkeiten aus und liefern ein verwertbares
+Ergebnis — belegt durch `tests/integration/departments.test.ts`. Ein Agent ohne
+Datenzugang klassifiziert den übergebenen Text korrekt, benennt die fehlenden
+Anbindungen im Lauf und in der Ausgabe (`unavailableTools`) und **erfindet keine
+Daten**. Das ist der Unterschied zwischen „eingeschränkt nutzbar" und
+„Attrappe" — aber es ist auch nicht dasselbe wie „einsatzbereit".
 
 ---
 
@@ -186,7 +223,9 @@ Pflichtfeld, die zur Prüfaufgabe führt statt zu Zahlung oder Buchung.
 | **Hintergrund-Worker (pg-boss)** | `pg-boss` ist als Abhängigkeit installiert, aber **nirgends verwendet**; `src/server/jobs/` existiert nicht | Läufe starten synchron über Server Actions. **Zeitgesteuerte Läufe und Hintergrund-Retries funktionieren nicht.** Der Feature-Flag „Zeitpläne" ist im Adminbereich als wirkungslos gekennzeichnet |
 | **Automatische Rechnungsstellung** | derselbe fehlende Worker | `issueInvoice()` läuft nur auf Anforderung über die Billing-Seite |
 | **Stripe-Webhook-Route** | benötigt `STRIPE_WEBHOOK_SECRET` und eine öffentlich erreichbare URL | Bei echten Zahlungen würde der Abo-Status nicht automatisch nachgeführt |
-| **14 weitere Connectoren** (Outlook, Microsoft Calendar, Google Drive, OneDrive, Dropbox, Slack, Teams, HubSpot, Salesforce, Pipedrive, Notion, sevdesk, lexoffice, DATEV) | brauchen App-Registrierungen, Verträge und echte Konten zum Testen | Im UI als „Nicht implementiert" gekennzeichnet. Die zugehörigen 17 Runtime-Werkzeuge werfen einen klaren Fehler statt Ergebnisse vorzutäuschen |
+| **14 weitere Connectoren** (Outlook, Microsoft Calendar, Google Drive, OneDrive, Dropbox, Slack, Teams, HubSpot, Salesforce, Pipedrive, Notion, sevdesk, lexoffice, DATEV) | brauchen App-Registrierungen, Verträge und echte Konten zum Testen | Im UI als „Nicht implementiert" gekennzeichnet. Die zugehörigen 10 Runtime-Werkzeuge werfen einen klaren Fehler statt Ergebnisse vorzutäuschen |
+| **Fachmodule für CRM, Tickets, HR, Kontakte** | Die 10 verbleibenden Platzhalter-Werkzeuge (`crm.*`, `tickets.*`, `hr.*`, `contacts.*`, `files.read`, `web.research`) setzen Datenbestände voraus, die es noch nicht gibt: Kontakte, Tickets, Personalstammdaten | Betrifft 28 Agenten. **Wichtig:** außer `web.research` bräuchte keines davon einen externen Anbieter — es wären eigene Tabellen nach dem Muster der bestehenden `deal`-Tabelle. Das ist offene Arbeit, kein Zugangsdatenproblem |
+| **`web.research`** | Braucht eine externe Suchschnittstelle und ausgehenden Netzzugriff | Das einzige der 33 Werkzeuge, das ohne Drittanbieter grundsätzlich nicht umsetzbar ist. Betrifft `lead-research`, `travel-planning`, `research` |
 | **Externe Sicherheitsprüfung** | nicht durchgeführt | Wird nirgends behauptet. Das Bedrohungsmodell ist Eigenanalyse |
 | **Verschlüsselung auf Feldebene für Inhalte** | würde die hybride Suche unmöglich machen | Aufgaben-, E-Mail- und Dokumenttexte liegen unverschlüsselt in der Datenbank. Schutz über Zugriffskontrolle und Speicherverschlüsselung auf Infrastrukturebene |
 | **Rate Limiting am Rand** | gehört auf den Reverse Proxy | Anwendungsseitig nicht vorhanden |
@@ -241,7 +280,9 @@ Formatbeispiel.
 
 Sieben Tests mit eingeschmuggelten Anweisungen in Dokumenten und E-Mails; acht
 RLS-Tests mit Cross-Tenant-Zugriffen; acht Tests des Betreiberzugangs; elf Tests
-der Webhook-Signatur inklusive Replay und manipulierter Nutzlast.
+der Webhook-Signatur inklusive Replay und manipulierter Nutzlast; zwanzig Tests
+der Selbstbegrenzungen der Plattform-Werkzeuge (Delegationsrekursion,
+Selbstbeauftragung, Sandbox-Wirkung, Beträge, Herkunft).
 
 ### Was nicht geprüft wurde
 
@@ -275,14 +316,23 @@ Lastprüfung. Die Bewertung oben ist Eigenanalyse.
    größte einzelne funktionale Zugewinn.
 7. **Stripe-Webhook-Route** ergänzen und den Adapter gegen den Test-Modus
    verifizieren.
-8. **Gmail- und Google-Calendar-Adapter tatsächlich schreiben** — bislang
+8. **Fachmodule für Tickets, Kontakte und HR-Stammdaten bauen** — nach dem
+   Muster der bestehenden `deal`-Tabelle: Schema, RLS-Migration, RLS-Test,
+   Werkzeuge, schlichte Oberfläche. Damit fallen die Werkzeuge `tickets.*`,
+   `contacts.*`, `hr.*` und `crm.*` — sie schließen die Lücke bei **28 der 57
+   Agenten** und brauchen keinen einzigen externen Vertrag. Der größte
+   Zugewinn an tatsächlich einsatzbereiten Agenten.
+9. **Gmail- und Google-Calendar-Adapter tatsächlich schreiben** — bislang
    existiert nur der Registry-Eintrag. Die Demo-Connectoren definieren dafür
    das Zielverhalten.
-9. **Voyage-Embeddings aktivieren** und alle Dokumente neu einlesen. Ohne
-   Neuindexierung liefert die Suche nach dem Providerwechsel Zufallstreffer.
-10. **Weitere Agenten vertiefen** — die Archetyp-Handler arbeiten, gewinnen aber
+10. **Voyage-Embeddings aktivieren** und alle Dokumente neu einlesen. Ohne
+    Neuindexierung liefert die Suche nach dem Providerwechsel Zufallstreffer.
+11. **`web.research` anbinden** — braucht eine Suchschnittstelle und
+    ausgehenden Netzzugriff. Bis dahin bleibt `lead-research` ohne eigenen
+    Datenzugang.
+12. **Weitere Agenten vertiefen** — die Archetyp-Handler arbeiten, gewinnen aber
     durch fachspezifische Regeln. Reihenfolge nach tatsächlicher Nutzung.
-11. **Externe Sicherheitsprüfung** beauftragen.
+13. **Externe Sicherheitsprüfung** beauftragen.
 
 ---
 
@@ -293,7 +343,7 @@ Lastprüfung. Die Bewertung oben ist Eigenanalyse.
 | Supabase als Datenbank vorgeschlagen | lokales PostgreSQL 16 mit Drizzle | Keine Supabase-Zugangsdaten verfügbar. Drizzle erzeugt SQL-Migrationen, in denen echte RLS-Policies formuliert werden — die Mandantentrennung liegt damit in der Datenbank |
 | 48 Agenten + Chief of Staff | 57 Agenten (7 × 8 + Chief of Staff) | Die Departmentliste der Vorgabe ergibt bei acht Agenten je Fachbereich 56 plus Chief of Staff |
 | shadcn/ui | handgeschriebene Komponenten im shadcn-Stil auf Radix-Primitiven | `ui.shadcn.com` ist durch die Netzwerkregeln dieser Umgebung nicht erreichbar; das CLI konnte nicht laufen |
-| Jede Fähigkeit mit eigener Logik | 12 vertiefte Handler + 8 Archetyp-Handler für 126 Fähigkeiten | 126 einzelne Implementierungen wären redundant und schlechter testbar. Die Zuordnung steht explizit im Code und ein Test verhindert, dass eine Fähigkeit auf eine Rückfallebene fällt (ADR-008) |
+| Jede Fähigkeit mit eigener Logik | 13 vertiefte Handler + 8 Archetyp-Handler für 126 Fähigkeiten | 126 einzelne Implementierungen wären redundant und schlechter testbar. Die Zuordnung steht explizit im Code und ein Test verhindert, dass eine Fähigkeit auf eine Rückfallebene fällt (ADR-008) |
 | Automatisierungsstufen bis 5 | 11 Fähigkeiten mit Risiko `hoch` fest auf 3 gedeckelt | Bindende Vorgabe §4.11: Aktionen mit finanzieller, rechtlicher, personeller oder Reputationsfolge erfordern menschliche Freigabe. Drei Katalogeinträge erlaubten zunächst Stufe 4 — das war ein echter Widerspruch und wurde korrigiert |
 
 ---

@@ -122,8 +122,17 @@ Vertiefte Handler werden vor den Archetypen geladen und behalten Vorrang.
 
 ## 4. Werkzeug ergänzen
 
-Nur wenn ein Werkzeug fehlt — in `runtime/tools.ts` (Plattformdaten) oder
-`runtime/tools-connectors.ts` (Integrationen):
+Nur wenn ein Werkzeug fehlt. Es gibt drei Orte, und die Wahl sagt etwas aus:
+
+| Datei | Für | Beispiele |
+| --- | --- | --- |
+| `runtime/tools.ts` | Kern-Plattformdaten | `tasks.read`, `notify.send` |
+| `runtime/tools-platform.ts` | eigene Tabellen, **keine** externen Zugangsdaten | `reports.generate`, `knowledge.write`, `agents.dispatch` |
+| `runtime/tools-connectors.ts` | Integrationen | `email.read`, `calendar.write` |
+
+Ein Werkzeug, das ohne externen Anbieter umsetzbar ist, gehört nach
+`tools-platform.ts` — nicht in die TODO-Liste. Nur was objektiv Zugangsdaten,
+Verträge oder eine nicht verfügbare API braucht, darf Platzhalter bleiben.
 
 ```ts
 registerTool({

@@ -79,6 +79,31 @@ async function noteUnavailableTools(ctx: HandlerContext): Promise<string[]> {
   return missing;
 }
 
+/**
+ * Holt echte Plattformkennzahlen, wenn die Fähigkeit sie braucht und
+ * freigegeben hat. Gibt einen Textblock zurück, der in die Analyse einfließt —
+ * damit beruhen Befunde auf tatsächlichen Zahlen und nicht allein auf dem
+ * übergebenen Text.
+ */
+async function platformMetrics(ctx: HandlerContext): Promise<string | null> {
+  if (!canUse(ctx, "reports.generate")) return null;
+  const result = await ctx.invokeTool("reports.generate", {
+    periodDays: Number(ctx.input.periodDays ?? 30),
+  });
+  const d = result.data as {
+    periodDays: number;
+    stats: { totalRuns: number; completedRuns: number; failedRuns: number; successRate: number };
+    approvals: { pending: number; approvalRate: number };
+    tasks: { open: number; overdue: number };
+  };
+  return [
+    `Zeitraum: ${d.periodDays} Tage`,
+    `Läufe: ${d.stats.totalRuns} (abgeschlossen ${d.stats.completedRuns}, fehlgeschlagen ${d.stats.failedRuns}, Erfolgsquote ${d.stats.successRate}%)`,
+    `Freigaben offen: ${d.approvals.pending} (Zustimmungsquote ${d.approvals.approvalRate}%)`,
+    `Aufgaben offen: ${d.tasks.open}, überfällig: ${d.tasks.overdue}`,
+  ].join("\n");
+}
+
 const monitorHandler: CapabilityHandler = async (ctx) => {
   const text = inputText(ctx);
   await noteUnavailableTools(ctx);
@@ -86,9 +111,22 @@ const monitorHandler: CapabilityHandler = async (ctx) => {
     zeichen: text.length,
   });
 
+  const metrics = await platformMetrics(ctx);
+  if (metrics) {
+    await ctx.recordStep("retrieve", "Plattformkennzahlen abgerufen", {
+      quelle: "reports.generate",
+      hinweis: "Zahlen aus abgeschlossenen Läufen, keine Schätzung.",
+    });
+  }
+
   const analysis = await ctx.ai(
     "generic.analysis",
-    text.slice(0, MAX_INPUT_CHARS),
+    [
+      metrics ? `<kennzahlen>\n${metrics}\n</kennzahlen>` : null,
+      text.slice(0, MAX_INPUT_CHARS),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     roleContext(ctx),
   );
 
@@ -117,6 +155,7 @@ const monitorHandler: CapabilityHandler = async (ctx) => {
     output: {
       findings: analysis.findings,
       recommendations: analysis.recommendations,
+      basedOnPlatformMetrics: metrics !== null,
     },
   };
 };
@@ -157,6 +196,38 @@ const classifyHandler: CapabilityHandler = async (ctx) => {
     };
   }
 
+  // Eskalation bis zum Anhalten eines Agenten: nur mit ausdrücklich benanntem
+  // Ziel. Welcher Agent gestoppt werden soll, wird nicht erraten — ein falsch
+  // gestoppter Agent unterbricht Arbeitsabläufe.
+  let pausePrepared = false;
+  if (canUse(ctx, "agents.pause")) {
+    const targetSlug = ctx.input.targetSlug;
+    if (typeof targetSlug === "string" && targetSlug.trim().length > 1) {
+      if (result.priority === "urgent") {
+        await ctx.prepareAction({
+          actionType: "agent.pause",
+          title: `Agenten anhalten: ${targetSlug}`,
+          reasoning: `Einordnung ergab höchste Dringlichkeit (${result.rationale}). Das Anhalten wirkt erst nach menschlicher Freigabe.`,
+          riskLevel: "medium",
+          payload: {
+            targetSlug: targetSlug.trim(),
+            reason: `Eskalation durch ${ctx.instance.displayName}: ${result.rationale}`.slice(
+              0,
+              500,
+            ),
+          },
+          affectedData: { ziel: targetSlug, einordnung: result.category },
+        });
+        pausePrepared = true;
+      }
+    } else {
+      await ctx.recordStep("validate", "Kein Agent zum Anhalten benannt", {
+        hinweis:
+          "Die Fähigkeit darf Agenten anhalten, aber es wurde kein targetSlug übergeben. Es wurde keiner geraten.",
+      });
+    }
+  }
+
   // Dringende Vorgänge erhalten eine nachverfolgbare Aufgabe.
   if (
     (result.priority === "urgent" || result.priority === "high") &&
@@ -180,10 +251,11 @@ const classifyHandler: CapabilityHandler = async (ctx) => {
   return {
     summary:
       `Eingeordnet als "${result.category}" mit Priorität "${result.priority}" (Konfidenz ${result.confidence}).` +
+      (pausePrepared ? " Anhalten eines Agenten zur Freigabe vorgelegt." : "") +
       (missing.length > 0
         ? ` Hinweis: ${missing.length} benötigte Anbindung(en) fehlen.`
         : ""),
-    output: { ...result, unavailableTools: missing },
+    output: { ...result, pausePrepared, unavailableTools: missing },
   };
 };
 
@@ -222,12 +294,35 @@ const extractHandler: CapabilityHandler = async (ctx) => {
     });
   }
 
+  // Dokumentverarbeitung: Das Extraktionsergebnis gehört in die Wissensbasis,
+  // wenn die Fähigkeit das vorsieht — sonst ist der Lauf nach seinem Ende weg.
+  const persisted =
+    result.fields.length > 0
+      ? await persistToKnowledge(ctx, {
+          title: knowledgeTitle(ctx),
+          body: [
+            "Erfasste Angaben:",
+            ...result.fields.map((f) => `- ${f.name}: ${f.value}`),
+            ...(result.missingFields.length > 0
+              ? ["", `Nicht im Dokument enthalten: ${result.missingFields.join(", ")}`]
+              : []),
+          ].join("\n"),
+          reasoning:
+            "Aus dem übergebenen Dokument erfasste Angaben. Fehlende Felder sind als fehlend vermerkt und nicht ergänzt.",
+        })
+      : false;
+
   return {
     summary:
-      result.fields.length > 0
+      (result.fields.length > 0
         ? `${result.fields.length} Feld(er) extrahiert${result.missingFields.length > 0 ? `, ${result.missingFields.length} fehlen` : ""}.`
-        : "Keine verwertbaren Felder gefunden — es wurde nichts ergänzt.",
-    output: { ...result, unavailableTools: missing },
+        : "Keine verwertbaren Felder gefunden — es wurde nichts ergänzt.") +
+      (persisted ? " Wissenseintrag vorbereitet." : ""),
+    output: {
+      ...result,
+      knowledgeEntryPrepared: persisted,
+      unavailableTools: missing,
+    },
   };
 };
 
@@ -235,17 +330,111 @@ const extractHandler: CapabilityHandler = async (ctx) => {
 /* draft — Entwurf erstellen, nie ungeprüft versenden                         */
 /* ========================================================================== */
 
+/**
+ * Rechnet Positionen, wenn welche übergeben wurden. Bewusst getrennt vom
+ * Modell: Beträge entstehen durch Arithmetik, nicht durch Textvorhersage.
+ * Ohne verwertbare Positionen wird nichts gerechnet und nichts geschätzt.
+ */
+async function calculatePricing(
+  ctx: HandlerContext,
+): Promise<{ block: string; data: unknown } | null> {
+  if (!canUse(ctx, "pricing.calculate")) return null;
+  const raw = ctx.input.items;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    await ctx.recordStep("validate", "Keine Preisberechnung möglich", {
+      grund:
+        "Es wurden keine Positionen übergeben. Beträge werden nicht geschätzt oder erfunden.",
+    });
+    return null;
+  }
+
+  try {
+    const result = await ctx.invokeTool("pricing.calculate", {
+      items: raw,
+      totalDiscountPercent: Number(ctx.input.totalDiscountPercent ?? 0),
+      vatPercent: Number(ctx.input.vatPercent ?? 19),
+      currency: ctx.input.currency === "CHF" ? "CHF" : "EUR",
+    });
+    const d = result.data as {
+      items: { description: string; quantity: number; lineTotalCents: number }[];
+      netCents: number;
+      vatPercent: number;
+      vatCents: number;
+      grossCents: number;
+      currency: string;
+      note: string;
+    };
+    const euro = (c: number) => `${(c / 100).toFixed(2)} ${d.currency}`;
+    return {
+      block: [
+        "Positionen:",
+        ...d.items.map(
+          (i) => `- ${i.description} (${i.quantity} ×) = ${euro(i.lineTotalCents)}`,
+        ),
+        `Netto: ${euro(d.netCents)}`,
+        `USt ${d.vatPercent}%: ${euro(d.vatCents)}`,
+        `Brutto: ${euro(d.grossCents)}`,
+        d.note,
+      ].join("\n"),
+      data: d,
+    };
+  } catch (err) {
+    // Eine fehlgeschlagene Validierung ist hier ein gutes Ergebnis: sie
+    // verhindert einen Entwurf mit erfundenen Zahlen.
+    await ctx.recordStep("validate", "Preisberechnung abgelehnt", {
+      grund: err instanceof Error ? err.message : String(err),
+      hinweis: "Der Entwurf entsteht ohne Beträge.",
+    });
+    return null;
+  }
+}
+
 const draftHandler: CapabilityHandler = async (ctx) => {
   const text = inputText(ctx);
   const missing = await noteUnavailableTools(ctx);
+
+  const pricing = await calculatePricing(ctx);
+
   const draft = await ctx.ai(
     "generic.draft",
-    text.slice(0, MAX_INPUT_CHARS),
+    [
+      pricing ? `<berechnete_positionen>\n${pricing.block}\n</berechnete_positionen>` : null,
+      text.slice(0, MAX_INPUT_CHARS),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
     roleContext(ctx),
   );
 
   await ctx.recordStep("draft", "Entwurf erstellt", {
     offene_punkte: draft.openQuestions.length,
+    beträge_berechnet: pricing !== null,
+  });
+
+  // Der Entwurfstext, ggf. mit den gerechneten Beträgen darunter.
+  const body = pricing ? `${draft.body}\n\n${pricing.block}` : draft.body;
+
+  // Wo die Fähigkeit ein Dokument vorsieht, entsteht ein Dokumententwurf —
+  // das ist das Arbeitsergebnis, nicht eine Aufgabe mit Text im Beschreibungsfeld.
+  const asDocument = await persistAsDocument(ctx, {
+    title: draft.title,
+    body,
+    documentType: ctx.capability.key,
+    // Der Entwurf erbt das Risiko der Fähigkeit: bei "hoch" (Angebot,
+    // HR-Dokument) entscheidet ein Mensch, ob das Dokument entsteht.
+    riskLevel: ctx.capability.riskLevel,
+    reasoning:
+      draft.openQuestions.length > 0
+        ? `Vor Verwendung zu klären: ${draft.openQuestions.join("; ")}`
+        : "Entwurf ausschließlich auf Basis der übergebenen Daten erstellt.",
+  });
+
+  // Wissenssicherung, wenn die Fähigkeit sie vorsieht (z. B. SOP, Hilfeartikel).
+  const asKnowledge = await persistToKnowledge(ctx, {
+    title: draft.title,
+    body,
+    reasoning:
+      "Entwurf zur Aufnahme in die Wissensbasis. Wird als agentengeschrieben gekennzeichnet.",
   });
 
   // Versand ist nie automatisch: Es entsteht ein Entwurf bzw. eine Freigabe.
@@ -265,29 +454,43 @@ const draftHandler: CapabilityHandler = async (ctx) => {
       },
       affectedData: { offene_punkte: draft.openQuestions },
     });
-  } else if (canUse(ctx, "tasks.write")) {
+  } else if (!asDocument && !asKnowledge && canUse(ctx, "tasks.write")) {
+    // Letzte Rückfallebene: Ohne Versandkanal, Dokument und Wissensablage
+    // wäre der Entwurf sonst nur im Lauf sichtbar.
     await ctx.prepareAction({
       actionType: "task.create",
       title: `Entwurf prüfen: ${draft.title}`,
       reasoning:
-        "Für diese Fähigkeit ist kein Versandkanal freigegeben — der Entwurf wird zur menschlichen Prüfung als Aufgabe hinterlegt.",
+        "Für diese Fähigkeit ist kein Versandkanal und keine Ablage freigegeben — der Entwurf wird zur menschlichen Prüfung als Aufgabe hinterlegt.",
       riskLevel: "low",
       payload: {
         title: `Entwurf prüfen: ${draft.title}`.slice(0, 200),
-        description: `${draft.body}\n\nOffene Punkte: ${draft.openQuestions.join("; ") || "keine"}`,
+        description: `${body}\n\nOffene Punkte: ${draft.openQuestions.join("; ") || "keine"}`,
         priority: "normal",
         source: { runId: ctx.runId, capability: ctx.capability.key },
       },
     });
   }
 
+  const ablage = [
+    asDocument ? "Dokumententwurf" : null,
+    asKnowledge ? "Wissenseintrag" : null,
+  ].filter(Boolean);
+
   return {
     summary:
       `Entwurf "${draft.title}" erstellt${draft.openQuestions.length > 0 ? ` — ${draft.openQuestions.length} offene(r) Punkt(e)` : ""}.` +
-      (missing.length > 0
-        ? ` Versandkanal nicht verbunden (${missing.join(", ")}).`
-        : ""),
-    output: { ...draft, unavailableTools: missing },
+      (pricing ? " Beträge wurden gerechnet, nicht geschätzt." : "") +
+      (ablage.length > 0 ? ` Vorbereitet: ${ablage.join(" und ")}.` : "") +
+      (missing.length > 0 ? ` Nicht verbunden: ${missing.join(", ")}.` : ""),
+    output: {
+      ...draft,
+      body,
+      pricing: pricing?.data ?? null,
+      documentPrepared: asDocument,
+      knowledgeEntryPrepared: asKnowledge,
+      unavailableTools: missing,
+    },
   };
 };
 
@@ -309,11 +512,121 @@ const summarizeHandler: CapabilityHandler = async (ctx) => {
     text.slice(0, MAX_INPUT_CHARS),
     roleContext(ctx),
   );
+
+  // Wissenssicherung: Die Verdichtung wird in die Wissensbasis übernommen,
+  // wenn die Fähigkeit das ausdrücklich vorsieht. Der Eintrag entsteht über
+  // prepareAction, damit die Automatisierungsstufe darüber entscheidet.
+  const persisted = await persistToKnowledge(ctx, {
+    title: knowledgeTitle(ctx),
+    body: [
+      result.summary,
+      "",
+      "Kernpunkte:",
+      ...result.keyPoints.map((p) => `- ${p}`),
+    ].join("\n"),
+    reasoning:
+      "Verdichtung des übergebenen Inhalts. Es wurden keine Angaben ergänzt, die nicht im Ausgangstext stehen.",
+  });
+
   return {
-    summary: result.summary,
-    output: { summary: result.summary, keyPoints: result.keyPoints },
+    summary:
+      result.summary + (persisted ? " Eintrag für die Wissensbasis vorbereitet." : ""),
+    output: {
+      summary: result.summary,
+      keyPoints: result.keyPoints,
+      knowledgeEntryPrepared: persisted,
+    },
   };
 };
+
+/* -------------------------------------------------------------------------- */
+/* Gemeinsame Bausteine für schreibende Plattform-Werkzeuge                    */
+/* -------------------------------------------------------------------------- */
+
+function knowledgeTitle(ctx: HandlerContext): string {
+  const given = ctx.input.title;
+  if (typeof given === "string" && given.trim().length >= 3) {
+    return given.trim().slice(0, 200);
+  }
+  const date = new Date().toISOString().slice(0, 10);
+  return `${ctx.capability.name} — ${date}`;
+}
+
+/**
+ * Legt einen Wissenseintrag zur Freigabe vor. Rückgabe sagt, ob das überhaupt
+ * möglich war — der Aufrufer soll das im Ergebnis benennen, statt zu schweigen.
+ *
+ * Der Zugriffsbereich wird vom Ausgangsdokument nicht geerbt: Ein Agent, der
+ * aus einem eingeschränkten Dokument zusammenfasst, würde den Inhalt sonst
+ * unbemerkt für die ganze Organisation öffnen. Wer den Bereich einschränken
+ * will, übergibt ihn ausdrücklich.
+ */
+async function persistToKnowledge(
+  ctx: HandlerContext,
+  entry: { title: string; body: string; reasoning: string },
+): Promise<boolean> {
+  if (!canUse(ctx, "knowledge.write")) return false;
+  if (entry.body.trim().length < 30) return false;
+
+  const scope = ctx.input.accessScope === "restricted" ? "restricted" : "organization";
+  const roles = Array.isArray(ctx.input.allowedRoles)
+    ? (ctx.input.allowedRoles as unknown[]).filter(
+        (r): r is string => typeof r === "string",
+      )
+    : [];
+  if (scope === "restricted" && roles.length === 0) {
+    await ctx.recordStep("validate", "Wissenseintrag nicht vorbereitet", {
+      grund:
+        'accessScope "restricted" ohne allowedRoles wäre für niemanden lesbar — es wurde nichts geschrieben.',
+    });
+    return false;
+  }
+
+  await ctx.prepareAction({
+    actionType: "knowledge.create",
+    title: `Wissenseintrag: ${entry.title}`,
+    reasoning: entry.reasoning,
+    riskLevel: "low",
+    payload: {
+      title: entry.title,
+      content: entry.body,
+      accessScope: scope,
+      allowedRoles: roles,
+    },
+    affectedData: { zugriff: scope, rollen: roles },
+  });
+  return true;
+}
+
+/** Legt einen Dokumententwurf zur Freigabe vor. */
+async function persistAsDocument(
+  ctx: HandlerContext,
+  entry: {
+    title: string;
+    body: string;
+    reasoning: string;
+    documentType: string;
+    riskLevel: "low" | "medium" | "high";
+  },
+): Promise<boolean> {
+  if (!canUse(ctx, "documents.write")) return false;
+  if (entry.body.trim().length < 30) return false;
+
+  await ctx.prepareAction({
+    actionType: "document.create",
+    title: `Dokument: ${entry.title}`,
+    reasoning: entry.reasoning,
+    riskLevel: entry.riskLevel,
+    payload: {
+      title: entry.title,
+      content: entry.body,
+      documentType: entry.documentType,
+      accessScope: "organization",
+      allowedRoles: [],
+    },
+  });
+  return true;
+}
 
 /* ========================================================================== */
 /* report — Bericht aus tatsächlichen Plattformdaten                          */
@@ -322,6 +635,45 @@ const summarizeHandler: CapabilityHandler = async (ctx) => {
 const reportHandler: CapabilityHandler = async (ctx) => {
   const missing = await noteUnavailableTools(ctx);
   const sections: { title: string; lines: string[] }[] = [];
+
+  // Plattformkennzahlen aus echten Laufdaten. Steht bewusst zuerst: das ist
+  // die belastbarste Quelle, weil sie aus abgeschlossenen Läufen stammt.
+  if (canUse(ctx, "reports.generate")) {
+    const result = await ctx.invokeTool("reports.generate", {
+      periodDays: Number(ctx.input.periodDays ?? 30),
+    });
+    const data = result.data as {
+      periodDays: number;
+      stats: {
+        totalRuns: number;
+        completedRuns: number;
+        failedRuns: number;
+        successRate: number;
+        totalCostDeciCents: number;
+      };
+      approvals: { pending: number; approvalRate: number };
+      tasks: { open: number; overdue: number };
+      topAgents: { displayName: string; runs: number; successRate: number }[];
+      estimatedMinutesSaved: number;
+      costsAreZeroBecauseScripted: boolean;
+    };
+    sections.push({
+      title: `Kennzahlen (${data.periodDays} Tage)`,
+      lines: [
+        `${data.stats.totalRuns} Läufe, ${data.stats.completedRuns} abgeschlossen, ${data.stats.failedRuns} fehlgeschlagen (Erfolgsquote ${data.stats.successRate}%).`,
+        `${data.approvals.pending} Freigabe(n) offen, Zustimmungsquote ${data.approvals.approvalRate}%.`,
+        `${data.tasks.open} Aufgaben offen, davon ${data.tasks.overdue} überfällig.`,
+        // Der Schätzcharakter wird mitgeschrieben, nicht weggelassen.
+        `Geschätzte Zeitersparnis: ${data.estimatedMinutesSaved} Minuten (Schätzung anhand eines festen Minutenwerts je Lauf, keine Messung).`,
+        data.costsAreZeroBecauseScripted
+          ? "KI-Kosten: 0 — es läuft kein echter KI-Anbieter, nicht weil keine Kosten entstanden."
+          : `KI-Kosten: ${(data.stats.totalCostDeciCents / 1000).toFixed(2)} €.`,
+        ...data.topAgents
+          .slice(0, 3)
+          .map((a) => `Aktivster Agent: ${a.displayName} — ${a.runs} Läufe (${a.successRate}%).`),
+      ],
+    });
+  }
 
   if (canUse(ctx, "tasks.read")) {
     const result = await ctx.invokeTool("tasks.read", { limit: 50 });
@@ -386,24 +738,47 @@ const reportHandler: CapabilityHandler = async (ctx) => {
     .map((s) => `${s.title}\n${s.lines.map((l) => `- ${l}`).join("\n")}`)
     .join("\n\n");
 
+  const reasoning =
+    "Alle Angaben stammen aus den Datensätzen dieser Organisation. Wo eine Zahl geschätzt ist, steht das im Bericht.";
+  let ablage: string | null = null;
+
   if (canUse(ctx, "briefing.write")) {
     await ctx.prepareAction({
       actionType: "briefing.create",
       title: `Bericht: ${ctx.capability.name}`,
-      reasoning:
-        "Alle Angaben stammen aus den Datensätzen dieser Organisation, nicht aus einer Schätzung.",
+      reasoning,
       riskLevel: "low",
       payload: { title: `Bericht: ${ctx.capability.name}`, body },
     });
+    ablage = "Briefing";
+  } else if (
+    await persistAsDocument(ctx, {
+      title: `Bericht: ${ctx.capability.name}`,
+      body,
+      documentType: "bericht",
+      riskLevel: "low",
+      reasoning,
+    })
+  ) {
+    ablage = "Dokument";
+  } else if (
+    await persistToKnowledge(ctx, {
+      title: `Bericht: ${ctx.capability.name}`,
+      body,
+      reasoning,
+    })
+  ) {
+    ablage = "Wissenseintrag";
   }
 
   return {
     summary:
       `Bericht aus ${sections.length} Datenquelle(n) erstellt — alle Zahlen stammen aus tatsächlichen Datensätzen.` +
+      (ablage ? ` Ablage als ${ablage} vorbereitet.` : "") +
       (missing.length > 0
         ? ` ${missing.length} weitere Quelle(n) sind nicht verbunden und fehlen im Bericht.`
         : ""),
-    output: { sections, body, unavailableTools: missing },
+    output: { sections, body, ablage, unavailableTools: missing },
   };
 };
 
@@ -420,11 +795,34 @@ const checklistHandler: CapabilityHandler = async (ctx) => {
     roleContext(ctx),
   );
 
+  // Erst ablegen, dann Schritte: Bei Fähigkeiten wie der Protokollindizierung
+  // ist die Auffindbarkeit des Inhalts der Zweck — auch wenn sich daraus keine
+  // einzige Aufgabe ergibt.
+  const persisted =
+    text.trim().length >= 30
+      ? await persistToKnowledge(ctx, {
+          title: knowledgeTitle(ctx),
+          body: [
+            text.slice(0, 20_000),
+            ...(result.tasks.length > 0
+              ? [
+                  "",
+                  "Abgeleitete Schritte:",
+                  ...result.tasks.map((t) => `- ${t.title}`),
+                ]
+              : []),
+          ].join("\n"),
+          reasoning:
+            "Inhalt wird für die Wiederauffindbarkeit in die Wissensbasis übernommen.",
+        })
+      : false;
+
   if (result.tasks.length === 0) {
     return {
       summary:
-        "Aus den Daten ließen sich keine konkreten Schritte ableiten — es wurden keine erfunden.",
-      output: { tasks: [] },
+        "Aus den Daten ließen sich keine konkreten Schritte ableiten — es wurden keine erfunden." +
+        (persisted ? " Der Inhalt wurde für die Wissensbasis vorbereitet." : ""),
+      output: { tasks: [], knowledgeEntryPrepared: persisted },
     };
   }
 
@@ -449,8 +847,10 @@ const checklistHandler: CapabilityHandler = async (ctx) => {
   }
 
   return {
-    summary: `${result.tasks.length} Schritt(e) abgeleitet.`,
-    output: { tasks: result.tasks },
+    summary:
+      `${result.tasks.length} Schritt(e) abgeleitet.` +
+      (persisted ? " Wissenseintrag vorbereitet." : ""),
+    output: { tasks: result.tasks, knowledgeEntryPrepared: persisted },
   };
 };
 

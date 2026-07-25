@@ -107,6 +107,23 @@ die Anwendungsschicht nicht (ADR-009).
 Embeddings verschiedener Anbieter nicht vergleichbar sind: nach einem Wechsel
 lässt sich erkennen, welche Dokumente neu eingelesen werden müssen.
 
+### Herkunft (`origin`, `created_by_agent_instance_id`, `created_by_run_id`)
+
+Agenten können über `knowledge.write` und `documents.write` selbst schreiben.
+Ohne Herkunftsangabe wäre ein so entstandener Text in der Suche nicht von einem
+hochgeladenen Vertrag zu unterscheiden — ein anderer Agent würde ihn als Beleg
+zitieren und die Falschinformation würde sich fortpflanzen.
+
+| Wert | Bedeutung |
+| --- | --- |
+| `upload` | von einem Menschen hochgeladen; `uploaded_by_user_id` gesetzt |
+| `agent_knowledge` | von einem Agenten in die Wissensbasis geschrieben |
+| `agent_document` | von einem Agenten erzeugtes Dokument (immer Entwurf) |
+
+`searchKnowledge()` gibt `origin` mit jedem Treffer zurück. Zusätzlich steht ein
+Herkunftsvermerk **im Text selbst** — die Spalte allein bliebe zurück, sobald
+ein Abschnitt zitiert oder exportiert wird.
+
 1024 Dimensionen passen zu Voyage `voyage-3` und werden vom lokalen
 Ersatzverfahren ebenfalls erzeugt — der Providerwechsel braucht keine Migration.
 

@@ -55,6 +55,17 @@ export const knowledgeDocument = pgTable(
     embeddingProvider: text("embedding_provider").notNull().default("local"),
     error: text("error"),
     demo: text("demo"),
+    /**
+     * Herkunft des Inhalts. Entscheidend für Vertrauen: ein von einem Agenten
+     * geschriebener Text darf in der Suche nicht wie ein hochgeladener Vertrag
+     * aussehen. `agent_knowledge` = in die Wissensbasis geschrieben,
+     * `agent_document` = erzeugtes Dokument (Entwurf).
+     */
+    origin: text("origin").notNull().default("upload"),
+    /** Welcher Agent den Inhalt erzeugt hat — null bei Upload durch Menschen. */
+    createdByAgentInstanceId: text("created_by_agent_instance_id"),
+    /** Lauf, in dem der Inhalt entstand — macht die Erzeugung nachvollziehbar. */
+    createdByRunId: text("created_by_run_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
