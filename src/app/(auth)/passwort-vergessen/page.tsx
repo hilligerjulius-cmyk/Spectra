@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Passwort zurücksetzen</CardTitle>
+        <CardTitle as="h1">Passwort zurücksetzen</CardTitle>
         <CardDescription>
           Wir senden Ihnen einen Link zum Zurücksetzen Ihres Passworts.
         </CardDescription>

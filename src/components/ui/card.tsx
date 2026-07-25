@@ -24,9 +24,22 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+/**
+ * Kartentitel. Standardmäßig ein `div`, weil eine Karte im Seitenkontext
+ * meist keine eigene Gliederungsebene bildet.
+ *
+ * Über `as` lässt sich ein echtes Überschriftenelement wählen. Das ist dort
+ * nötig, wo die Karte den Hauptinhalt der Seite trägt — Anmeldung und
+ * Registrierung etwa. Ohne `h1` fehlt Screenreadern und der
+ * Dokumentgliederung der Einstiegspunkt.
+ */
+function CardTitle({
+  className,
+  as: Component = "div",
+  ...props
+}: React.ComponentProps<"div"> & { as?: "div" | "h1" | "h2" | "h3" }) {
   return (
-    <div
+    <Component
       data-slot="card-title"
       className={cn("font-semibold leading-none tracking-tight", className)}
       {...props}

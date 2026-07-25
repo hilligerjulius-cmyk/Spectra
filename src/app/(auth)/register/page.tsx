@@ -52,7 +52,7 @@ export default function RegisterPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Konto erstellen</CardTitle>
+        <CardTitle as="h1">Konto erstellen</CardTitle>
         <CardDescription>
           Kostenlos starten und Ihr digitales Team zusammenstellen.
         </CardDescription>

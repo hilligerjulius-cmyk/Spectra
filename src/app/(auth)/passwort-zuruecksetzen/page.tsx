@@ -46,7 +46,7 @@ function ResetPasswordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Neues Passwort festlegen</CardTitle>
+        <CardTitle as="h1">Neues Passwort festlegen</CardTitle>
         <CardDescription>Mindestens 10 Zeichen.</CardDescription>
       </CardHeader>
       <CardContent>

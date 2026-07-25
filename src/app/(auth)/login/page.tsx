@@ -47,7 +47,7 @@ function LoginForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Anmelden</CardTitle>
+        <CardTitle as="h1">Anmelden</CardTitle>
         <CardDescription>
           Willkommen zurück. Melden Sie sich bei Ihrem Konto an.
         </CardDescription>
