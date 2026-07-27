@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireOrg, PermissionError } from "@/server/auth/guards";
 import {
-  ALL_TYPE_KEYS,
+  NOTIFICATION_TYPE_KEYS,
   markRead,
   sendDigest,
   updatePreference,
@@ -44,8 +44,8 @@ export async function markNotificationRead(
 }
 
 const preferenceSchema = z.object({
-  inAppTypes: z.array(z.enum(ALL_TYPE_KEYS as [string, ...string[]])).max(20),
-  emailTypes: z.array(z.enum(ALL_TYPE_KEYS as [string, ...string[]])).max(20),
+  inAppTypes: z.array(z.enum(NOTIFICATION_TYPE_KEYS)).max(20),
+  emailTypes: z.array(z.enum(NOTIFICATION_TYPE_KEYS)).max(20),
   dailyDigest: z.boolean(),
   // Format UND Gültigkeit: 99:99 hat das richtige Muster, ist aber keine Uhrzeit.
   digestHour: z
@@ -53,9 +53,18 @@ const preferenceSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Bitte eine gültige Uhrzeit angeben."),
 });
 
-export async function saveNotificationPreference(
-  input: z.infer<typeof preferenceSchema>,
-): Promise<NotificationActionResult> {
+/**
+ * Der Parametertyp ist absichtlich weit: Was vom Client kommt, ist ungeprüft,
+ * und ein enger Typ würde nur vortäuschen, dass er das nicht ist. Die
+ * Einschränkung auf gültige Typschlüssel leistet `preferenceSchema`
+ * serverseitig.
+ */
+export async function saveNotificationPreference(input: {
+  inAppTypes: string[];
+  emailTypes: string[];
+  dailyDigest: boolean;
+  digestHour: string;
+}): Promise<NotificationActionResult> {
   try {
     const ctx = await requireOrg();
     const parsed = preferenceSchema.safeParse(input);

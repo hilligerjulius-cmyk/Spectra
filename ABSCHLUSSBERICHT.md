@@ -11,16 +11,16 @@ ungetestet ist, steht das hier — nicht in einer Fußnote.
 
 | | |
 | --- | --- |
-| Quelldateien (`src/`) | 214 (TypeScript/TSX), ca. 36.100 Zeilen |
-| Datenbanktabellen | 37, davon 23 mandantenbezogen mit RLS-Policy |
-| SQL-Migrationen | 20 |
+| Quelldateien (`src/`) | 222 (TypeScript/TSX), ca. 37.600 Zeilen |
+| Datenbanktabellen | 38, davon 24 mandantenbezogen mit RLS-Policy |
+| SQL-Migrationen | 22 |
 | Agenten im Katalog | 57 über 8 Departments (7 Fachbereiche + Chief of Staff) |
 | Fähigkeiten | 126 (Risiko: 88 niedrig, 27 mittel, 11 hoch) |
 | Runtime-Werkzeuge | 33 vom Katalog referenziert, **32 echt implementiert**, 1 Platzhalter (`web.research`) |
 | Agenten mit vollem Datenzugang | **54 von 57** (3 teilweise, 0 ohne eigenen Zugang) |
 | Seiten | 19 Marketing, 18 App, 5 Admin, 3 API-Routen |
 | UI-Komponenten | 42 |
-| Tests | **181 Vitest** (23 Dateien) + **31 Playwright** = 212 |
+| Tests | **220 Vitest** (25 Dateien) + **31 Playwright** = 251 |
 
 ---
 
@@ -29,7 +29,7 @@ ungetestet ist, steht das hier — nicht in einer Fußnote.
 ```
 pnpm lint       → keine Meldungen
 pnpm typecheck  → keine Fehler
-pnpm test       → Test Files 23 passed (23) | Tests 181 passed (181)  [10,45 s]
+pnpm test       → Test Files 25 passed (25) | Tests 220 passed (220)  [10,52 s]
 pnpm build      → erfolgreich, 54 Routen
 pnpm e2e        → 31 passed (12,9 s)
 ```
@@ -42,6 +42,8 @@ Die Vitest-Suite läuft gegen eine echte PostgreSQL-16-Datenbank
 
 | Datei | Tests | Gegenstand |
 | --- | --- | --- |
+| `tests/integration/jobs.test.ts` | 17 | Hintergrund-Worker: Fenster-Beanspruchung ohne Doppellauf, pausierte Agenten, automatische Abschaltung nach Fehlläufen, doppelte Rechnungen, Freigabe-Verfall |
+| `tests/unit/schedule.test.ts` | 20 | Fälligkeitsberechnung inklusive beider Sommerzeitwechsel und fremder Zeitzonen |
 | `tests/rls/tenant-isolation.test.ts` | 9 | Mandantentrennung gegen die echte DB, inklusive der vier Fachtabellen |
 | `tests/integration/tools-business.test.ts` | 22 | Schutzregeln der Fachwerkzeuge: keine erfundenen Personen, Sperrvermerke unumkehrbar, keine genehmigten Personalvorgänge, keine Gesundheitsdaten im Lauf, CSV-Import mit Dublettenmeldung |
 | `tests/integration/tools-platform.test.ts` | 20 | Selbstbegrenzungen der Plattform-Werkzeuge: keine Delegationsrekursion, keine Selbstbeauftragung, kein Anhalten im Sandbox-Lauf, keine geschätzten Beträge, Herkunft agentengeschriebener Inhalte |
@@ -79,7 +81,7 @@ Pflichtfeld, die zur Prüfaufgabe führt statt zu Zahlung oder Buchung.
 **Fundament**
 
 - Next.js 16.2.11 App Router, TypeScript strict, React 19, Tailwind CSS 4
-- PostgreSQL 16 mit pgvector und pgcrypto, Drizzle ORM, 17 Migrationen
+- PostgreSQL 16 mit pgvector und pgcrypto, Drizzle ORM, 22 Migrationen
 - Zwei Datenbankrollen: `workforce_app` (RLS-unterworfen), `workforce_owner`
   (Migrationen, Auth, Systemjobs)
 - Sicherheits-Kopfzeilen auf jeder Antwort (per E2E-Test geprüft), Health-Endpunkt,
@@ -87,11 +89,11 @@ Pflichtfeld, die zur Prüfaufgabe führt statt zu Zahlung oder Buchung.
 
 **Mandantenfähigkeit**
 
-- RLS-Policy auf allen 19 mandantenbezogenen Tabellen; `withOrg()` setzt
+- RLS-Policy auf allen 24 mandantenbezogenen Tabellen; `withOrg()` setzt
   `app.org_id` per `set_config` innerhalb einer Transaktion
 - Auth- und Plattformtabellen: **keine** Rechte für die App-Rolle
 - Zusätzliches Scoping in der Datenzugriffsschicht (Defense in Depth)
-- Belegt durch 8 Tests, die erwarten, dass Cross-Tenant-Zugriffe **an der
+- Belegt durch 9 Tests, die erwarten, dass Cross-Tenant-Zugriffe **an der
   Datenbank** scheitern — nicht an der Anwendung
 
 **Auth und Rollen**
@@ -110,7 +112,7 @@ Pflichtfeld, die zur Prüfaufgabe führt statt zu Zahlung oder Buchung.
   request_approval → execute → verify → report
 - Automatisierungsstufen 0–5 je Fähigkeit; `defineAgent()` deckelt jede
   Fähigkeit auf die zu ihrem Risiko passende Höchststufe (`high` → 3)
-- 12 vertiefte, agentenspezifische Handler über 7 Agenten; 8 Archetyp-Handler
+- 13 vertiefte, agentenspezifische Handler über 7 Agenten; 8 Archetyp-Handler
   für die übrigen — jeder verrichtet echte Arbeit
 - Werkzeugaufruf nur bei Fähigkeitsbedarf **und** Instanz-Freigabe
 - Grenzen je Lauf: 20 Schritte, 120 s, 2 € KI-Kosten, 15 Werkzeugaufrufe
@@ -146,6 +148,34 @@ Pflichtfeld, die zur Prüfaufgabe führt statt zu Zahlung oder Buchung.
 - CSV-Import/Export mit selbst geschriebenem RFC-4180-Parser, Teilimport mit
   Problemmeldung je Zeile
 - Zugangsdaten AES-256-GCM verschlüsselt (`v1:<iv>:<tag>:<ciphertext>`)
+
+**Hintergrund-Worker**
+
+Ein eigener Prozess (`pnpm worker`) auf pg-boss, im eigenen Schema `pgboss` und
+mit der Owner-Rolle. Fünf Takte: fällige Zeitpläne (jede Minute),
+Agentenläufe mit zwei Wiederholungen und steigendem Abstand,
+Tageszusammenfassungen (alle 15 Minuten), Abrechnung (täglich) und Verfall
+offener Freigaben (alle 10 Minuten).
+
+Die Zeitpläne liegen in der Anwendungsdatenbank, nicht in pg-boss — dadurch
+unterliegen sie der Mandantentrennung, stehen im Audit-Log und sind ohne
+Worker-Neustart änderbar. pg-boss liefert nur den Herzschlag.
+
+| Eigenschaft | Umsetzung |
+| --- | --- |
+| Kein Doppellauf | Das Zeitfenster wird über ein bedingtes `UPDATE` **vor** dem Einreihen beansprucht. Zwei Worker, ein Neustart mitten im Takt oder ein wiederholter Job erzeugen keinen zweiten Lauf. Zusätzlich trägt jeder Lauf einen Idempotenzschlüssel aus Zeitplan und Fenster. |
+| Vier Muster statt Cron | stündlich, täglich, werktäglich, wöchentlich — mit Uhrzeit und IANA-Zeitzone. Cron wäre mächtiger und die häufigste Quelle falsch gesetzter Zeitpläne. |
+| Sommerzeit | Das Slot-Verfahren führt beim Rückstellen der Uhr keinen doppelten Lauf aus und lässt beim Vorstellen keinen ausfallen. Beide Fälle sind einzeln getestet. |
+| Pausierte Agenten | Ein Zeitplan startet keinen Lauf für einen pausierten Agenten oder eine abgeschaltete Fähigkeit. Das Fenster bleibt unbeansprucht, sodass der Lauf nach dem Fortsetzen stattfindet. |
+| Erschöpftes Kontingent | Wird nicht als Fehler wiederholt — Wiederholen würde daran nichts ändern. Der Grund steht am Zeitplan. |
+| Dauerhafte Fehlläufe | Nach fünf Fehlläufen in Folge wird der Zeitplan abgeschaltet, im Audit-Log vermerkt und die Organisation benachrichtigt. Ohne diese Grenze würde ein falsch konfigurierter Agent jede Nacht Kontingent verbrauchen. |
+| Endgültig gescheiterte Jobs | Landen in einer Endlager-Warteschlange und bleiben dort 30 Tage einsehbar, statt still zu verschwinden. |
+| Geordnetes Herunterfahren | `SIGTERM`/`SIGINT` lassen laufende Jobs zu Ende gehen. |
+
+Belegt durch 17 Integrationstests gegen die Datenbank und 20 Unit-Tests der
+Fälligkeitsberechnung. Zusätzlich wurde der Worker-Prozess selbst gestartet: Er
+hat einen fälligen Zeitplan gefunden, den Lauf ausgeführt (`trigger_type:
+schedule`, 7 Schritte) und ihn in den folgenden Takten **nicht** wiederholt.
 
 **Betreiberbereich**
 
@@ -253,8 +283,7 @@ die fehlende Anbindung im Lauf und in der Ausgabe (`unavailableTools`) und
 
 | Punkt | Grund | Auswirkung |
 | --- | --- | --- |
-| **Hintergrund-Worker (pg-boss)** | `pg-boss` ist als Abhängigkeit installiert, aber **nirgends verwendet**; `src/server/jobs/` existiert nicht | Läufe starten synchron über Server Actions. **Zeitgesteuerte Läufe und Hintergrund-Retries funktionieren nicht.** Der Feature-Flag „Zeitpläne" ist im Adminbereich als wirkungslos gekennzeichnet |
-| **Automatische Rechnungsstellung** | derselbe fehlende Worker | `issueInvoice()` läuft nur auf Anforderung über die Billing-Seite |
+| **Oberfläche für Zeitpläne** | Datenmodell, Worker und Server Actions sind fertig; die Ansicht zum Anlegen fehlt | Zeitpläne sind heute nur über die Server Actions bzw. direkt in der Datenbank setzbar |
 | **Stripe-Webhook-Route** | benötigt `STRIPE_WEBHOOK_SECRET` und eine öffentlich erreichbare URL | Bei echten Zahlungen würde der Abo-Status nicht automatisch nachgeführt |
 | **14 weitere Connectoren** (Outlook, Microsoft Calendar, Google Drive, OneDrive, Dropbox, Slack, Teams, HubSpot, Salesforce, Pipedrive, Notion, sevdesk, lexoffice, DATEV) | brauchen App-Registrierungen, Verträge und echte Konten zum Testen | Im UI als „Nicht implementiert" gekennzeichnet. Ein Kunde mit bestehendem HubSpot oder Zendesk arbeitet bis dahin auf den plattformeigenen Beständen (CSV-Import) statt auf seinem Fremdsystem |
 | **`web.research`** | Braucht eine externe Suchschnittstelle und ausgehenden Netzzugriff | Das **einzige** der 33 Katalog-Werkzeuge, das ohne Drittanbieter grundsätzlich nicht umsetzbar ist. Betrifft `lead-research`, `travel-planning`, `research` |
@@ -344,9 +373,10 @@ Lastprüfung. Die Bewertung oben ist Eigenanalyse.
 
 **Danach, nach Nutzwert geordnet**
 
-6. **pg-boss-Worker bauen** (`src/server/jobs/`) — schaltet zeitgesteuerte
-   Läufe, Hintergrund-Retries und automatische Rechnungsstellung frei. Der
-   größte einzelne funktionale Zugewinn.
+6. **Worker unter eine Prozessverwaltung stellen** — er ist implementiert und
+   geprüft, aber ein einzelner Prozess. Ohne Neustart nach Absturz ruhen
+   Zeitpläne. systemd, Docker-Restart-Policy oder ein
+   Kubernetes-Deployment genügen.
 7. **Stripe-Webhook-Route** ergänzen und den Adapter gegen den Test-Modus
    verifizieren.
 8. **Verwaltungsansichten für Tickets, Kontakte und Personal** — die Tabellen

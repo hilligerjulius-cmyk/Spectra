@@ -9,6 +9,7 @@ import {
   task,
 } from "@/server/db/schema";
 import type { RiskLevel } from "@/server/agents/catalog";
+import { NOTIFICATION_TYPE_KEYS } from "@/server/notifications/service";
 
 /**
  * Tool-Registry der Agent-Runtime.
@@ -156,7 +157,10 @@ registerTool({
   idempotent: false,
   inputSchema: z.object({
     userId: z.string().nullable().optional(),
-    type: z.string().default("info"),
+    // Nur deklarierte Typen. Vorher ließ `z.string()` jeden Wert durch und der
+    // Benachrichtigungsdienst verwarf unbekannte Typen still — die Meldung
+    // verschwand, ohne dass irgendwo ein Fehler auftauchte.
+    type: z.enum(NOTIFICATION_TYPE_KEYS).default("info"),
     title: z.string().min(3).max(200),
     body: z.string().max(2000).nullable().optional(),
     href: z.string().max(300).nullable().optional(),
@@ -164,7 +168,7 @@ registerTool({
   async execute(ctx, rawInput) {
     const input = this.inputSchema.parse(rawInput) as {
       userId?: string | null;
-      type: string;
+      type: (typeof NOTIFICATION_TYPE_KEYS)[number];
       title: string;
       body?: string | null;
       href?: string | null;

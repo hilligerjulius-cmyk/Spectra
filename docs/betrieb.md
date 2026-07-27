@@ -22,6 +22,9 @@ cp .env.example .env      # Werte anpassen
 pnpm db:migrate
 pnpm db:migrate:test
 pnpm dev
+
+# In einem zweiten Terminal: Hintergrund-Worker für Zeitpläne
+pnpm worker
 ```
 
 **Wichtig:** `DATABASE_URL` muss auf `workforce_app` zeigen. Zeigt sie auf die
@@ -114,13 +117,63 @@ Embeddings verschiedener Anbieter sind nicht vergleichbar. Nach einem Wechsel
 alle Dokumente neu eingelesen wurden. Vorgehen: Dokumente entfernen und erneut
 hochladen.
 
+## Hintergrund-Worker
+
+```bash
+pnpm worker
+```
+
+Ein dauerhaft laufender Prozess neben der Anwendung. Er übernimmt:
+
+| Takt | Wie oft | Aufgabe |
+| --- | --- | --- |
+| `schedule-tick` | jede Minute | fällige Agenten-Zeitpläne einreihen |
+| `agent-run` | ereignisgesteuert | Lauf ausführen, bei Fehlern zwei Wiederholungen mit steigendem Abstand |
+| `digest-tick` | alle 15 Minuten | Tageszusammenfassungen versenden, deren Uhrzeit erreicht ist |
+| `billing-tick` | täglich 03:10 UTC | Rechnungen für abgeschlossene Perioden |
+| `approval-expiry` | alle 10 Minuten | überfällige Freigaben auf „abgelaufen" setzen |
+
+**Der Prozess braucht eine Prozessverwaltung** (systemd, Docker-Restart-Policy,
+Kubernetes-Deployment), die ihn nach einem Absturz neu startet. Ohne laufenden
+Worker bleibt die Anwendung vollständig bedienbar — Läufe lassen sich von Hand
+starten, nur Zeitpläne ruhen, bis er wieder läuft.
+
+Mehrere Worker-Prozesse sind erlaubt. Die Taktgeber laufen als `singleton`, und
+ein fälliges Zeitfenster wird über ein bedingtes `UPDATE` beansprucht: Auch bei
+zwei Prozessen entsteht höchstens ein Lauf je Fenster.
+
+### Zeitpläne
+
+Vier Muster statt Cron: stündlich, täglich, werktäglich (Mo–Fr), wöchentlich —
+jeweils mit Uhrzeit und IANA-Zeitzone. Cron wäre mächtiger, ist aber die
+häufigste Quelle falsch gesetzter Zeitpläne.
+
+Die Zeitpläne liegen in der Anwendungsdatenbank (`agent_schedule`), nicht in
+pg-boss. Dadurch unterliegen sie der Mandantentrennung, stehen im Audit-Log und
+sind ohne Worker-Neustart änderbar.
+
+Ein Zeitplan, der **fünfmal in Folge** fehlschlägt, wird automatisch
+abgeschaltet und die Organisation benachrichtigt. Ohne diese Grenze würde ein
+falsch konfigurierter Agent jede Nacht erneut Kontingent verbrauchen.
+
+Zeitpläne starten keine Läufe für pausierte Agenten oder abgeschaltete
+Fähigkeiten — das Zeitfenster bleibt dann unbeansprucht, sodass der Lauf nach
+dem Fortsetzen wieder stattfindet.
+
+### pg-boss
+
+pg-boss legt seine Tabellen im **eigenen Schema `pgboss`** an und verbindet sich
+mit der Owner-Rolle (`DATABASE_ADMIN_URL`). Beides ist beabsichtigt:
+`drizzle-kit` sieht das Schema nicht und erzeugt keine Migration, die es löschen
+würde, und die App-Rolle braucht keine Rechte zum Anlegen von Tabellen.
+
 ## Bekannte Betriebsgrenzen
 
 | Punkt | Auswirkung |
 | --- | --- |
-| Kein Hintergrundprozess | Läufe starten synchron über Server Actions. Zeitpläne und Retries brauchen den geplanten pg-boss-Worker. |
-| Rechnungen nur manuell | `issueInvoice()` läuft auf Anforderung. Für automatische Abrechnung fehlt derselbe Worker. |
 | Verbrauchsperiode ist der Kalendermonat | Zähler setzen sich mit dem Monatswechsel selbst zurück. |
+| Abrechnung erst ab dem 2. des Monats | Damit Läufe vom Monatsletzten vollständig erfasst sind. Nur bei aktivem Abo — eine Testphase wird nicht abgerechnet. |
+| Zeitpläne mit Minutengenauigkeit | Der Takt läuft jede Minute; sekundengenaue Zeitpläne gibt es nicht. |
 | Kein Rate Limiting am Rand | Gehört auf den Reverse Proxy, nicht in die Anwendung. |
 
 Vollständig geführt in `TODO.md`.

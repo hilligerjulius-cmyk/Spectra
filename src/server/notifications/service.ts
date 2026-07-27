@@ -70,6 +70,17 @@ export const NOTIFICATION_TYPES = [
     emailByDefault: false,
   },
   {
+    key: "agent_paused",
+    label: "Agent oder Zeitplan angehalten",
+    description:
+      "Ein Agent wurde pausiert oder ein Zeitplan nach mehreren Fehlläufen abgeschaltet.",
+    /**
+     * Standardmäßig per E-Mail: Ein stillgelegter Zeitplan fällt sonst erst
+     * auf, wenn jemand das Ergebnis vermisst — und das kann Wochen dauern.
+     */
+    emailByDefault: true,
+  },
+  {
     key: "info",
     label: "Allgemeine Hinweise",
     description: "Sonstige Meldungen der Plattform.",
@@ -80,6 +91,17 @@ export const NOTIFICATION_TYPES = [
 export type NotificationTypeKey = (typeof NOTIFICATION_TYPES)[number]["key"];
 
 export const ALL_TYPE_KEYS = NOTIFICATION_TYPES.map((t) => t.key);
+
+/**
+ * Dieselben Schlüssel als nicht-leeres Tupel — die Form, die `z.enum()`
+ * verlangt. Ersetzt die früheren `as [string, ...string[]]`-Zusicherungen an
+ * den Aufrufstellen, die die Typprüfung genau dort aufgehoben haben, wo sie
+ * gebraucht wird.
+ */
+export const NOTIFICATION_TYPE_KEYS = ALL_TYPE_KEYS as [
+  NotificationTypeKey,
+  ...NotificationTypeKey[],
+];
 const EMAIL_DEFAULT_KEYS = NOTIFICATION_TYPES.filter(
   (t) => t.emailByDefault,
 ).map((t) => t.key);
@@ -163,7 +185,12 @@ export async function updatePreference(params: {
 export interface NotifyInput {
   organizationId: string;
   userId: string;
-  type: NotificationTypeKey | string;
+  /**
+   * Nur deklarierte Typen. Bewusst nicht auf `string` geweitet: Ein Tippfehler
+   * soll beim Übersetzen auffallen und nicht erst dadurch, dass die Meldung im
+   * Betrieb ausbleibt.
+   */
+  type: NotificationTypeKey;
   title: string;
   body?: string | null;
   href?: string | null;
@@ -183,6 +210,21 @@ export interface NotifyResult {
  * die Meldung erscheint dann gebündelt im Digest.
  */
 export async function notify(input: NotifyInput): Promise<NotifyResult> {
+  /*
+   * Ein unbekannter Typ ist ein Programmierfehler, kein Nutzerwunsch.
+   *
+   * Vorher fiel er durch die Präferenzprüfung und die Meldung verschwand
+   * lautlos — genau so ging eine Abschaltmeldung für Zeitpläne verloren, weil
+   * `agent_paused` nirgends deklariert war. Ein Wurf macht das in Tests und
+   * Logs sichtbar; die Aufrufstellen in der Runtime fangen
+   * Benachrichtigungsfehler ohnehin ab, ein Lauf scheitert daran also nicht.
+   */
+  if (!ALL_TYPE_KEYS.includes(input.type as NotificationTypeKey)) {
+    throw new Error(
+      `Unbekannter Benachrichtigungstyp "${input.type}". Erlaubt: ${ALL_TYPE_KEYS.join(", ")}.`,
+    );
+  }
+
   const pref = await getOrCreatePreference(input.organizationId, input.userId);
   const result: NotifyResult = { inApp: false, email: "skipped" };
 

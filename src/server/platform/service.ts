@@ -280,7 +280,7 @@ export const FEATURE_FLAG_SEEDS = [
     key: "scheduled_runs",
     label: "Zeitgesteuerte Läufe",
     description:
-      "Agenten nach Zeitplan starten. Erfordert den pg-boss-Worker (siehe TODO.md) — ohne ihn bleibt der Schalter wirkungslos.",
+      "Agenten nach Zeitplan starten. Erfordert einen laufenden Worker-Prozess (`pnpm worker`); ohne ihn bleiben angelegte Zeitpläne stehen, bis er wieder läuft.",
   },
   {
     key: "bulk_approvals",

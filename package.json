@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:migrate:test": "DATABASE_ADMIN_URL=postgres://workforce_owner:workforce_owner_dev@localhost:5432/workforce_test tsx scripts/migrate.ts",
     "db:seed:demo": "tsx --require ./scripts/server-only-shim.cjs scripts/seed-demo.ts",
+    "worker": "tsx --require ./scripts/server-only-shim.cjs scripts/worker.ts",
     "platform:admin": "tsx scripts/grant-platform-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest",

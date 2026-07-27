@@ -239,6 +239,58 @@ describe("Benachrichtigungen", () => {
     expect(approvalNote!.href).toBe("/app/approvals");
     expect(approvalNote!.title).toContain("Freigabe erforderlich");
   });
+
+  /*
+   * Regression: `notify()` verwarf unbekannte Typschlüssel still. Die Meldung
+   * über einen automatisch abgeschalteten Zeitplan ging deshalb verloren, weil
+   * `agent_paused` nirgends deklariert war — ohne Fehler, ohne Logeintrag.
+   * Ein unbekannter Typ ist ein Programmierfehler und muss auffallen.
+   */
+  it("weist unbekannte Benachrichtigungstypen zurück, statt sie zu verwerfen", async () => {
+    const { notify } = await import("@/server/notifications/service");
+    await expect(
+      notify({
+        organizationId: orgId,
+        userId,
+        // @ts-expect-error — genau dieser Fall soll auffallen
+        type: "gibt_es_nicht",
+        title: "Sollte nicht ankommen",
+      }),
+    ).rejects.toThrow(/Unbekannter Benachrichtigungstyp/);
+  });
+
+  it("kennt den Typ für angehaltene Agenten und Zeitpläne", async () => {
+    const {
+      notify,
+      listNotifications,
+      updatePreference,
+      NOTIFICATION_TYPES,
+      NOTIFICATION_TYPE_KEYS,
+    } = await import("@/server/notifications/service");
+    expect(NOTIFICATION_TYPES.some((t) => t.key === "agent_paused")).toBe(true);
+
+    // Ein früherer Test in dieser Datei hat die Einstellungen eingeschränkt.
+    // Die Voraussetzung wird hier ausdrücklich hergestellt, damit der Test die
+    // Typ-Registrierung prüft und nicht das Filterverhalten.
+    await updatePreference({
+      organizationId: orgId,
+      userId,
+      inAppTypes: [...NOTIFICATION_TYPE_KEYS],
+      emailTypes: [],
+      dailyDigest: false,
+      digestHour: "08:00",
+    });
+
+    await notify({
+      organizationId: orgId,
+      userId,
+      type: "agent_paused",
+      title: "Zeitplan automatisch abgeschaltet",
+      body: "Fünf Fehlläufe in Folge.",
+    });
+    const items = await listNotifications(orgId, userId);
+    expect(items.some((n) => n.type === "agent_paused")).toBe(true);
+  });
 });
 
 describe("Berichte", () => {

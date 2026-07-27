@@ -22,10 +22,9 @@ In aktiver Entwicklung. Siehe [TODO.md](./TODO.md) für offene Punkte und
   als Fallback ohne API-Key), Voyage-Embeddings mit lokalem Fallback
 - **Billing**: Stripe-Adapter (nicht gegen die echte API getestet) mit
   Mock-Fallback, serverseitige Preislogik
-- **Jobs/Queue**: *noch nicht vorhanden.* Agentenläufe laufen synchron über
-  Server Actions. `pg-boss` ist als Abhängigkeit vorgesehen, aber es existiert
-  kein Worker-Prozess — Zeitpläne und Hintergrund-Retries fehlen entsprechend
-  (siehe [TODO.md](./TODO.md))
+- **Jobs/Queue**: pg-boss im eigenen Schema `pgboss`. Der Worker (`pnpm worker`)
+  übernimmt Zeitpläne, Wiederholungen, Tageszusammenfassungen, Abrechnung und
+  den Verfall offener Freigaben
 
 ## Lokale Installation
 
@@ -70,6 +69,7 @@ pnpm dev
 | `pnpm db:migrate` | Migrationen ausführen (Dev-DB) |
 | `pnpm test` | Unit-/Integrations-/RLS-Tests (Vitest, Test-DB) |
 | `pnpm e2e` | End-to-End-Tests (Playwright) |
+| `pnpm worker` | Hintergrund-Worker: Zeitpläne, Retries, Abrechnung |
 | `pnpm db:seed:demo` | Demo-Organisation mit gekennzeichneten Seed-Daten |
 
 ## Ohne externe Zugangsdaten
